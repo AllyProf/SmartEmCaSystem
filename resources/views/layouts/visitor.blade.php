@@ -13,7 +13,10 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <style>
-        body { background-color: #f5f5f5; }
+        body { 
+            background-color: #f5f5f5; 
+            font-family: "Century Gothic", AppleGothic, sans-serif;
+        }
         .visit-container {
             max-width: 900px;
             margin: 40px auto;

@@ -22,7 +22,7 @@
             </div>
             <div class="col-8">
                 <div style="background-color: #940000; position: relative; padding: 40px 30px 40px 60px; color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; clip-path: polygon(15% 0, 100% 0, 100% 100%, 0% 100%);">
-                    <div style="font-family: Arial, sans-serif; text-align: right;">
+                    <div style="font-family: 'Century Gothic', AppleGothic, sans-serif; text-align: right;">
                         <p style="margin:0; font-size: 20px; font-weight: bold;">EmCa Techonologies</p>
                         <p style="margin:0; font-size: 14px;">S.L.P 20, Moshi - Kilimanjaro</p>
                         <p style="margin:0; font-size: 14px;">Tel: +255 749 719 998</p>
@@ -34,14 +34,14 @@
     </div>
 
     <div class="p-5">
-        <div class="mb-4" style="font-family: Arial, sans-serif;">
+        <div class="mb-4" style="font-family: 'Century Gothic', AppleGothic, sans-serif;">
             <h3 style="font-weight: bold; margin-bottom: 30px; letter-spacing: 1px; color: #333;">ATTENDANCE SHEET</h3>
             <p style="font-size: 18px; font-weight: bold;">
                 SUBJECT: <span style="border-bottom: 2px dotted #333; display: inline-block; width: 80%; padding-left: 10px; font-style: italic;">{{ $visit->subject }}</span>
             </p>
         </div>
 
-        <table class="table table-bordered mt-5 attendance-table" style="border: 2px solid #333; font-family: Arial, sans-serif;">
+        <table class="table table-bordered mt-5 attendance-table" style="border: 2px solid #333; font-family: 'Century Gothic', AppleGothic, sans-serif;">
             <thead>
                 <tr style="background-color: #f2f2f2 !important; color: #333 !important; -webkit-print-color-adjust: exact;">
                     <th style="width: 50px; border: 1px solid #333; text-align: center;">S/N</th>
@@ -88,7 +88,7 @@
     <!-- Decorative Footer Block (Matching Image) -->
     <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 60px; pointer-events: none;">
         <div style="background-color: #940000; height: 100%; clip-path: polygon(0 40%, 85% 40%, 100% 100%, 0% 100%); -webkit-print-color-adjust: exact; print-color-adjust: exact; display: flex; align-items: flex-end; justify-content: flex-start; padding: 0 40px 10px 40px;">
-            <div style="color: white; font-family: Arial, sans-serif; font-size: 12px; pointer-events: auto;">
+            <div style="color: white; font-family: 'Century Gothic', AppleGothic, sans-serif; font-size: 12px; pointer-events: auto;">
                 Benbella Road, Moshi | www.emca.tech | <i class="fa fa-instagram"></i> @emcatechn
             </div>
         </div>

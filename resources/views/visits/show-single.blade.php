@@ -22,7 +22,7 @@
             </div>
             <div class="col-8">
                 <div style="background-color: #940000; position: relative; padding: 40px 30px 40px 60px; color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; clip-path: polygon(15% 0, 100% 0, 100% 100%, 0% 100%);">
-                    <div style="font-family: Arial, sans-serif; text-align: right;">
+                    <div style="font-family: 'Century Gothic', AppleGothic, sans-serif; text-align: right;">
                         <p style="margin:0; font-size: 20px; font-weight: bold;">EmCa Techonologies</p>
                         <p style="margin:0; font-size: 14px;">S.L.P 20, Moshi - Kilimanjaro</p>
                         <p style="margin:0; font-size: 14px;">Tel: +255 749 719 998</p>
@@ -35,10 +35,10 @@
 
     <div class="p-5">
         <div class="text-center mb-5">
-            <h3 style="font-family: Arial, sans-serif; font-weight: bold; letter-spacing: 1px; color: #333;">CUSTOMER VISIT CONFIRMATION FORM</h3>
+            <h3 style="font-family: 'Century Gothic', AppleGothic, sans-serif; font-weight: bold; letter-spacing: 1px; color: #333;">CUSTOMER VISIT CONFIRMATION FORM</h3>
         </div>
 
-        <div class="row mb-5" style="font-family: Arial, sans-serif; font-size: 16px;">
+        <div class="row mb-5" style="font-family: 'Century Gothic', AppleGothic, sans-serif; font-size: 16px;">
             <div class="col-6">
                 <span class="font-weight-bold">Visit Date:</span> 
                 <span style="border-bottom: 1px solid #333; display: inline-block; width: 250px; padding-left: 10px; font-style: italic;">{{ $visit->visit_date }}</span>
@@ -118,7 +118,7 @@
         </table>
 
         <!-- Confirmation Section (Exact Layout) -->
-        <div class="mt-5" style="border: 2px solid #333; font-family: Arial, sans-serif; position: relative; z-index: 20;">
+        <div class="mt-5" style="border: 2px solid #333; font-family: 'Century Gothic', AppleGothic, sans-serif; position: relative; z-index: 20;">
             <div style="background-color: #f8f9fa; padding: 8px 15px; border-bottom: 2px solid #333; font-weight: bold; font-size: 15px;">
                 CONFIRMATION | I confirm that the visit took place as stated above.
             </div>
@@ -158,7 +158,7 @@
     <!-- Decorative Footer Block (Matching Image Header style) -->
     <div style="position: absolute; bottom: 0; left: 0; width: 100%; height: 60px; pointer-events: none;">
         <div style="background-color: #940000; height: 100%; clip-path: polygon(0 40%, 85% 40%, 100% 100%, 0% 100%); -webkit-print-color-adjust: exact; print-color-adjust: exact; display: flex; align-items: flex-end; justify-content: flex-start; padding: 0 40px 10px 40px;">
-            <div style="color: white; font-family: Arial, sans-serif; font-size: 12px; pointer-events: auto;">
+            <div style="color: white; font-family: 'Century Gothic', AppleGothic, sans-serif; font-size: 12px; pointer-events: auto;">
                 Benbella Road, Moshi | www.emca.tech | <i class="fa fa-instagram"></i> @emcatechn
             </div>
         </div>

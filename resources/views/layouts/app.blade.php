@@ -17,8 +17,12 @@
             --primary: #940000;
             --secondary: #6c757d;
         }
+        body {
+            font-family: "Century Gothic", AppleGothic, sans-serif;
+        }
         .app-header__logo {
             background-color: #940000 !important;
+            font-family: inherit;
         }
         .app-sidebar__user {
             background: linear-gradient(135deg, #940000 0%, #b30000 100%);
