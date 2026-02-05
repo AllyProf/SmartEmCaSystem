@@ -46,6 +46,7 @@ class AdminUserSeeder extends Seeder
             ['name' => 'Naomi Naomi', 'email' => 'naomi@emca.tech', 'phone' => '0715000005'],
             ['name' => 'Caroline Shija', 'email' => 'caroline.shija@emca.tech', 'phone' => '0716000006'],
             ['name' => 'Emmanuel Masaga', 'email' => 'emmanuel.masaga@emca.tech', 'phone' => '0717000007'],
+            ['name' => 'Kulwa Kabeta', 'email' => 'kulwakabeta@gmail.com', 'phone' => '0765707018'],
         ];
 
         foreach ($staffMembers as $staff) {
