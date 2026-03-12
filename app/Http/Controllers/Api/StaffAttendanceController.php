@@ -31,6 +31,7 @@ class StaffAttendanceController extends Controller
             'staff_id' => 'nullable|string',
             'email'    => 'nullable|string',
             'password' => 'required|string',
+            'device_id' => 'nullable|string',
         ]);
 
         if (empty($validated['staff_id']) && empty($validated['email'])) {
@@ -64,6 +65,25 @@ class StaffAttendanceController extends Controller
                 'success' => false,
                 'error'   => 'Your account is deactivated'
             ], 403);
+        }
+
+        // Device ID Binding (Phone-Lock) Security
+        if ($request->has('device_id') && !empty($request->device_id)) {
+            $incomingDeviceId = $request->device_id;
+            
+            if (empty($user->device_id)) {
+                // First time login - Bind the device
+                $user->device_id = $incomingDeviceId;
+                $user->save();
+            } else {
+                // Check if device matches
+                if ($user->device_id !== $incomingDeviceId) {
+                    return response()->json([
+                        'success' => false,
+                        'error'   => 'Unauthorized device. This account is locked to another phone. Contact Admin to reset.'
+                    ], 403);
+                }
+            }
         }
 
         // Generate API token

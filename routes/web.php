@@ -43,6 +43,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/users', [AuthController::class, 'users'])->name('users.index');
     Route::get('/users/create', [AuthController::class, 'createUser'])->name('users.create');
     Route::post('/users', [AuthController::class, 'storeUser'])->name('users.store');
+    Route::post('/users/{user}/reset-device', [AuthController::class, 'resetDevice'])->name('users.reset_device');
 
     // Admin View for Visit Confirmations
     Route::get('/confirmations', [App\Http\Controllers\VisitorController::class, 'index'])->name('visits.index');

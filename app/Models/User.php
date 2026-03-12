@@ -26,6 +26,7 @@ class User extends Authenticatable
         'role',
         'staff_id',
         'is_active',
+        'device_id',
         'created_by',
     ];
 

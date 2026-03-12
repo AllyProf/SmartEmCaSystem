@@ -26,6 +26,7 @@
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Role</th>
+                                <th>Device Lock</th>
                                 <th>Created By</th>
                                 <th>Created At</th>
                             </tr>
@@ -36,6 +37,21 @@
                                 <td>{{ $user->name }}</td>
                                 <td>{{ $user->email }}</td>
                                 <td><span class="badge badge-info">{{ ucfirst(str_replace('_', ' ', $user->role)) }}</span></td>
+                                <td>
+                                    @if($user->device_id)
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <span class="badge badge-success"><i class="fa fa-lock"></i> Locked</span>
+                                            <form action="{{ route('users.reset_device', $user->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to reset this device lock? The staff will be able to login from a different phone.')">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-danger py-0" title="Reset Device Lock">
+                                                    <i class="fa fa-refresh"></i> Reset
+                                                </button>
+                                            </form>
+                                        </div>
+                                    @else
+                                        <span class="badge badge-secondary">Not Linked</span>
+                                    @endif
+                                </td>
                                 <td>{{ $user->creator->name ?? 'System' }}</td>
                                 <td>{{ $user->created_at->format('M d, Y') }}</td>
                             </tr>

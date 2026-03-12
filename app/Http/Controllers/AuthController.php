@@ -240,4 +240,18 @@ class AuthController extends Controller
 
         return back()->with('error', 'Something went wrong.');
     }
+
+    /**
+     * Reset Staff Device ID (Phone-Lock)
+     */
+    public function resetDevice(User $user)
+    {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo()) {
+            abort(403);
+        }
+
+        $user->update(['device_id' => null]);
+
+        return back()->with('success', "Device lock has been reset for {$user->name}. They can now login from a new phone.");
+    }
 }
