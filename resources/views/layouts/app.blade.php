@@ -197,61 +197,31 @@
     <script src="{{ asset('vali-master/docs/js/main.js') }}"></script>
     <!-- The javascript plugin to display page loading on top-->
     <script src="{{ asset('vali-master/docs/js/plugins/pace.min.js') }}"></script>
-    <!-- Sweet Alert -->
-    <script src="{{ asset('vali-master/docs/js/plugins/sweetalert.min.js') }}"></script>
+    <!-- SweetAlert2 (Modern, No Overlay Issues) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
-        // Function to cleanup Sweet Alert overlays
-        function cleanupSweetAlert() {
-            $('.sweet-overlay').remove();
-            $('.sweet-alert').remove();
-            $('body').removeClass('stop-scrolling');
-        }
-
-        // Sweet Alert for success/error messages
         @if(session('success'))
-            swal({
-                title: "Success!",
-                text: "{{ session('success') }}",
-                type: "success",
-                confirmButtonText: "OK",
-                closeOnConfirm: true
-            }, function() {
-                // Cleanup after alert is confirmed
-                setTimeout(cleanupSweetAlert, 200);
+            Swal.fire({
+                icon: 'success',
+                title: 'Success!',
+                text: "{{ addslashes(session('success')) }}",
+                confirmButtonColor: '#940000',
+                confirmButtonText: 'OK',
+                timer: 5000,
+                timerProgressBar: true,
             });
-            // Also cleanup after 5 seconds as fallback
-            setTimeout(cleanupSweetAlert, 5000);
         @endif
 
         @if(session('error'))
-            swal({
-                title: "Error!",
-                text: "{{ session('error') }}",
-                type: "error",
-                confirmButtonText: "OK",
-                closeOnConfirm: true
-            }, function() {
-                // Cleanup after alert is confirmed
-                setTimeout(cleanupSweetAlert, 200);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error!',
+                text: "{{ addslashes(session('error')) }}",
+                confirmButtonColor: '#940000',
+                confirmButtonText: 'OK',
             });
-            // Also cleanup after 5 seconds as fallback
-            setTimeout(cleanupSweetAlert, 5000);
         @endif
-
-        // Clean up any leftover Sweet Alert overlays on page load
-        $(document).ready(function() {
-            // Remove any existing overlays that might be stuck
-            setTimeout(cleanupSweetAlert, 1000);
-            
-            // Monitor and cleanup stuck overlays every 2 seconds
-            setInterval(function() {
-                // If overlay exists but alert doesn't have visible class, remove it
-                if ($('.sweet-overlay').length > 0 && !$('.sweet-alert').hasClass('visible')) {
-                    cleanupSweetAlert();
-                }
-            }, 2000);
-        });
 
         // CSRF Token setup for AJAX
         $.ajaxSetup({
