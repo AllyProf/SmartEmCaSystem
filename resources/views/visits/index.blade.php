@@ -110,7 +110,57 @@
             </div>
             
             <div class="mt-4">
-                {{ $visits->links() }}
+                @if($visits->hasPages())
+                <nav aria-label="Visit Confirmations Pagination">
+                    <ul class="pagination justify-content-center">
+                        {{-- Previous --}}
+                        <li class="page-item {{ $visits->onFirstPage() ? 'disabled' : '' }}">
+                            <a class="page-link" href="{{ $visits->previousPageUrl() ?? '#' }}" aria-label="Previous">
+                                <span aria-hidden="true">&laquo; Prev</span>
+                            </a>
+                        </li>
+
+                        {{-- Page Numbers --}}
+                        @php
+                            $start = max(1, $visits->currentPage() - 2);
+                            $end   = min($visits->lastPage(), $visits->currentPage() + 2);
+                        @endphp
+
+                        @if($start > 1)
+                            <li class="page-item"><a class="page-link" href="{{ $visits->url(1) }}">1</a></li>
+                            @if($start > 2)
+                                <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                            @endif
+                        @endif
+
+                        @for($p = $start; $p <= $end; $p++)
+                            <li class="page-item {{ $p == $visits->currentPage() ? 'active' : '' }}">
+                                <a class="page-link" href="{{ $visits->url($p) }}"
+                                   style="{{ $p == $visits->currentPage() ? 'background-color:#940000; border-color:#940000;' : '' }}">
+                                    {{ $p }}
+                                </a>
+                            </li>
+                        @endfor
+
+                        @if($end < $visits->lastPage())
+                            @if($end < $visits->lastPage() - 1)
+                                <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                            @endif
+                            <li class="page-item"><a class="page-link" href="{{ $visits->url($visits->lastPage()) }}">{{ $visits->lastPage() }}</a></li>
+                        @endif
+
+                        {{-- Next --}}
+                        <li class="page-item {{ !$visits->hasMorePages() ? 'disabled' : '' }}">
+                            <a class="page-link" href="{{ $visits->nextPageUrl() ?? '#' }}" aria-label="Next">
+                                <span aria-hidden="true">Next &raquo;</span>
+                            </a>
+                        </li>
+                    </ul>
+                    <p class="text-center text-muted small mt-1">
+                        Showing {{ $visits->firstItem() }} – {{ $visits->lastItem() }} of {{ $visits->total() }} records
+                    </p>
+                </nav>
+                @endif
             </div>
         </div>
     </div>
