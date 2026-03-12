@@ -18,9 +18,9 @@
             --secondary: #6c757d;
         }
         body, h1, h2, h3, h4, h5, h6, p, span, div, a, input, button, select, textarea {
-            font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif !important;
+            font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
         }
-        .fa {
+        .fa, .app-sidebar__toggle {
             font-family: FontAwesome !important;
         }
         body {
