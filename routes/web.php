@@ -39,6 +39,12 @@ Route::middleware(['auth'])->group(function () {
     // Admin View for Visit Confirmations
     Route::get('/confirmations', [App\Http\Controllers\VisitorController::class, 'index'])->name('visits.index');
     Route::get('/confirmations/{id}', [App\Http\Controllers\VisitorController::class, 'show'])->name('visits.show');
+
+    // Attendance (CEO view)
+    Route::prefix('attendance')->name('attendance.')->group(function () {
+        Route::get('/', [App\Http\Controllers\AttendanceController::class, 'index'])->name('index');
+        Route::post('/settings', [App\Http\Controllers\AttendanceController::class, 'saveSettings'])->name('settings.save');
+    });
 });
 
 // Visitor Confirmation Routes (Semi-Protected by Staff Verify Session)

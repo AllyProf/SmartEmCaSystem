@@ -116,6 +116,14 @@
                     <span class="app-menu__label">Confirmations</span>
                 </a>
             </li>
+            @if(auth()->user()->role === 'ceo' || auth()->user()->role === 'super_admin')
+            <li>
+                <a class="app-menu__item {{ request()->routeIs('attendance.*') ? 'active' : '' }}" href="{{ route('attendance.index') }}">
+                    <i class="app-menu__icon fa fa-clock-o"></i>
+                    <span class="app-menu__label">Attendance</span>
+                </a>
+            </li>
+            @endif
             @can('manageUsers', App\Models\User::class)
             <li>
                 <a class="app-menu__item {{ request()->routeIs('users.*') ? 'active' : '' }}" href="{{ route('users.index') }}">
