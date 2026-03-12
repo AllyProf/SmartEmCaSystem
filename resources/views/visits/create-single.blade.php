@@ -151,8 +151,12 @@
         resizeCanvas(customerCanvas);
         resizeCanvas(repCanvas);
 
-        const customerPad = new SignaturePad(customerCanvas);
-        const repPad = new SignaturePad(repCanvas);
+        const customerPad = new SignaturePad(customerCanvas, {
+            backgroundColor: 'rgb(255, 255, 255)'
+        });
+        const repPad = new SignaturePad(repCanvas, {
+            backgroundColor: 'rgb(255, 255, 255)'
+        });
 
         document.getElementById('clearCustomer').addEventListener('click', () => customerPad.clear());
         document.getElementById('clearRep').addEventListener('click', () => repPad.clear());
@@ -183,12 +187,16 @@
             document.getElementById('repSignatureInput').value = repPad.toDataURL();
         });
         
-        // Handle window resize for signature pads
+        // Handle window resize for signature pads (only adjust size, don't clear)
         window.addEventListener("resize", () => {
+            const customerData = customerPad.toData();
+            const repData = repPad.toData();
+            
             resizeCanvas(customerCanvas);
             resizeCanvas(repCanvas);
-            customerPad.clear();
-            repPad.clear();
+            
+            customerPad.fromData(customerData);
+            repPad.fromData(repData);
         });
     });
 </script>
