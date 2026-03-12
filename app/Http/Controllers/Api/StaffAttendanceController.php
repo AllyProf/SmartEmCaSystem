@@ -67,23 +67,20 @@ class StaffAttendanceController extends Controller
             ], 403);
         }
 
-        // Device ID Binding (Phone-Lock) Security
-        if ($request->has('device_id') && !empty($request->device_id)) {
-            $incomingDeviceId = $request->device_id;
-            
-            if (empty($user->device_id)) {
-                // First time login - Bind the device
-                $user->device_id = $incomingDeviceId;
-                $user->save();
-            } else {
-                // Check if device matches
-                if ($user->device_id !== $incomingDeviceId) {
-                    return response()->json([
-                        'success' => false,
-                        'error'   => 'Unauthorized device. This account is locked to another phone. Contact Admin to reset.'
-                    ], 403);
-                }
+        // Device ID Binding (Phone-Lock) Security - Strict Enforcement
+        if (!empty($user->device_id)) {
+            // Account is already bound to a phone. Request MUST have matching device_id.
+            if ($user->device_id !== $request->device_id) {
+                return response()->json([
+                    'success' => false,
+                    'error'   => 'Unauthorized device. This account is locked to another phone. Contact Admin to reset.',
+                    'message' => 'Unauthorized device. Access denied.'
+                ], 403);
             }
+        } elseif (!empty($request->device_id)) {
+            // First time login - Bind the device
+            $user->device_id = $request->device_id;
+            $user->save();
         }
 
         // Generate API token
