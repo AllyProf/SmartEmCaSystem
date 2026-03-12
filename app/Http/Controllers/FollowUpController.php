@@ -38,13 +38,15 @@ class FollowUpController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'customer_id' => 'required|exists:customers,id',
-            'visit_date' => 'required|date',
-            'visit_purpose' => 'nullable|string|max:1000',
-            'notes' => 'nullable|string|max:2000',
-            'status' => 'required|in:pending,completed,cancelled',
+            'customer_id'         => 'required|exists:customers,id',
+            'visit_date'          => 'required|date',
+            'visit_purpose'       => 'nullable|string|max:1000',
+            'notes'               => 'nullable|string|max:2000',
+            'status'              => 'required|in:pending,completed,cancelled',
             'next_follow_up_date' => 'nullable|date|after_or_equal:today',
-            'assigned_to' => 'nullable|exists:users,id',
+            'assigned_to'         => 'nullable|exists:users,id',
+            'reminder_date'       => 'nullable|date',
+            'remind_via'          => 'nullable|in:assigned_user,customer,both',
         ]);
 
         if ($validator->fails()) {
@@ -52,18 +54,20 @@ class FollowUpController extends Controller
         }
 
         FollowUp::create([
-            'customer_id' => $request->customer_id,
-            'visit_date' => $request->visit_date,
-            'visit_purpose' => $request->visit_purpose,
-            'notes' => $request->notes,
-            'status' => $request->status,
+            'customer_id'         => $request->customer_id,
+            'visit_date'          => $request->visit_date,
+            'visit_purpose'       => $request->visit_purpose,
+            'notes'               => $request->notes,
+            'status'              => $request->status,
             'next_follow_up_date' => $request->next_follow_up_date,
-            'assigned_to' => $request->assigned_to,
-            'created_by' => auth()->id(),
+            'assigned_to'         => $request->assigned_to,
+            'created_by'          => auth()->id(),
+            'reminder_date'       => $request->reminder_date,
+            'remind_via'          => $request->remind_via ?? 'assigned_user',
         ]);
 
         return redirect()->route('follow-ups.index')
-            ->with('success', 'Follow-up created successfully!');
+            ->with('success', 'Follow-up created successfully! SMS reminder will be sent on the reminder date.');
     }
 
     /**
@@ -94,27 +98,35 @@ class FollowUpController extends Controller
         $followUp = FollowUp::findOrFail($id);
 
         $validator = Validator::make($request->all(), [
-            'customer_id' => 'required|exists:customers,id',
-            'visit_date' => 'required|date',
-            'visit_purpose' => 'nullable|string|max:1000',
-            'notes' => 'nullable|string|max:2000',
-            'status' => 'required|in:pending,completed,cancelled',
+            'customer_id'         => 'required|exists:customers,id',
+            'visit_date'          => 'required|date',
+            'visit_purpose'       => 'nullable|string|max:1000',
+            'notes'               => 'nullable|string|max:2000',
+            'status'              => 'required|in:pending,completed,cancelled',
             'next_follow_up_date' => 'nullable|date|after_or_equal:today',
-            'assigned_to' => 'nullable|exists:users,id',
+            'assigned_to'         => 'nullable|exists:users,id',
+            'reminder_date'       => 'nullable|date',
+            'remind_via'          => 'nullable|in:assigned_user,customer,both',
         ]);
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
         }
 
+        // If the reminder date changed, reset the sent flag so it fires again
+        $reminderChanged = $followUp->reminder_date != $request->reminder_date;
+
         $followUp->update([
-            'customer_id' => $request->customer_id,
-            'visit_date' => $request->visit_date,
-            'visit_purpose' => $request->visit_purpose,
-            'notes' => $request->notes,
-            'status' => $request->status,
+            'customer_id'         => $request->customer_id,
+            'visit_date'          => $request->visit_date,
+            'visit_purpose'       => $request->visit_purpose,
+            'notes'               => $request->notes,
+            'status'              => $request->status,
             'next_follow_up_date' => $request->next_follow_up_date,
-            'assigned_to' => $request->assigned_to,
+            'assigned_to'         => $request->assigned_to,
+            'reminder_date'       => $request->reminder_date,
+            'remind_via'          => $request->remind_via ?? 'assigned_user',
+            'reminder_sent_at'    => $reminderChanged ? null : $followUp->reminder_sent_at,
         ]);
 
         return redirect()->route('follow-ups.index')

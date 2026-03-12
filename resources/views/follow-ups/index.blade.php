@@ -27,6 +27,7 @@
                                 <th>Visit Date</th>
                                 <th>Purpose</th>
                                 <th>Next Follow-up</th>
+                                <th>Reminder</th>
                                 <th>Status</th>
                                 <th>Assigned To</th>
                                 <th>Actions</th>
@@ -39,6 +40,17 @@
                                 <td>{{ $followUp->visit_date->format('M d, Y') }}</td>
                                 <td>{{ Str::limit($followUp->visit_purpose, 30) ?? 'N/A' }}</td>
                                 <td>{{ $followUp->next_follow_up_date ? $followUp->next_follow_up_date->format('M d, Y') : 'N/A' }}</td>
+                                <td class="text-center">
+                                    @if($followUp->reminder_date)
+                                        @if($followUp->reminder_sent_at)
+                                            <span class="badge badge-success" title="Sent on {{ $followUp->reminder_sent_at->format('M d, Y H:i') }}"><i class="fa fa-check"></i> Sent</span>
+                                        @else
+                                            <span class="badge badge-warning text-dark" title="Scheduled for {{ $followUp->reminder_date->format('M d, Y') }}"><i class="fa fa-bell"></i> {{ $followUp->reminder_date->format('M d') }}</span>
+                                        @endif
+                                    @else
+                                        <span class="text-muted small">—</span>
+                                    @endif
+                                </td>
                                 <td><span class="badge badge-{{ $followUp->status === 'completed' ? 'success' : ($followUp->status === 'cancelled' ? 'danger' : 'warning') }}">{{ ucfirst($followUp->status) }}</span></td>
                                 <td>{{ $followUp->assignedUser->name ?? 'N/A' }}</td>
                                 <td>

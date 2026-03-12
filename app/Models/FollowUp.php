@@ -14,13 +14,18 @@ class FollowUp extends Model
         'notes',
         'status',
         'next_follow_up_date',
+        'reminder_date',
+        'reminder_sent_at',
+        'remind_via',
         'assigned_to',
         'created_by',
     ];
 
     protected $casts = [
-        'visit_date' => 'date',
+        'visit_date'          => 'date',
         'next_follow_up_date' => 'date',
+        'reminder_date'       => 'date',
+        'reminder_sent_at'    => 'datetime',
     ];
 
     // Relationships

@@ -65,6 +65,27 @@
                             @endforeach
                         </select>
                     </div>
+
+                    {{-- SMS Reminder Section --}}
+                    <div class="tile" style="border-left: 4px solid #940000; background: #fff8f8; border-radius: 6px; padding: 15px 20px; margin-bottom: 20px;">
+                        <p class="font-weight-bold mb-2" style="color: #940000;"><i class="fa fa-bell"></i> SMS Reminder Settings</p>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label class="control-label">Reminder Date <span class="text-muted">(Optional)</span></label>
+                                <input class="form-control" type="date" name="reminder_date" value="{{ old('reminder_date') }}" placeholder="When to send the SMS reminder">
+                                <small class="text-muted">The system will send an SMS on this date at 7:00 AM.</small>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label class="control-label">Remind Via</label>
+                                <select class="form-control" name="remind_via">
+                                    <option value="assigned_user" {{ old('remind_via', 'assigned_user') == 'assigned_user' ? 'selected' : '' }}>Staff / Assigned User Only</option>
+                                    <option value="customer" {{ old('remind_via') == 'customer' ? 'selected' : '' }}>Customer Only</option>
+                                    <option value="both" {{ old('remind_via') == 'both' ? 'selected' : '' }}>Both Staff & Customer</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="tile-footer">
                         <button class="btn btn-primary" type="submit"><i class="fa fa-fw fa-lg fa-check-circle"></i>Save</button>
                         <a class="btn btn-secondary" href="{{ route('follow-ups.index') }}"><i class="fa fa-fw fa-lg fa-times-circle"></i>Cancel</a>
