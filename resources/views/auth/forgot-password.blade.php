@@ -8,8 +8,11 @@
     <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
     <title>Forgot Password - Smart EmCa System</title>
     <style>
-        * {
+        body, h1, h2, h3, h4, h5, h6, p, span, div, a, input, button, select, textarea {
             font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif !important;
+        }
+        .fa {
+            font-family: FontAwesome !important;
         }
         .material-half-bg .cover {
             background-color: #940000;
