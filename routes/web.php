@@ -12,6 +12,14 @@ Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+// Forgot Password with OTP
+Route::get('/forgot-password', [AuthController::class, 'showForgotPasswordForm'])->name('password.request');
+Route::post('/forgot-password', [AuthController::class, 'sendOtp'])->name('password.otp.send');
+Route::get('/verify-otp', [AuthController::class, 'showVerifyOtpForm'])->name('password.otp.verify');
+Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->name('password.otp.check');
+Route::get('/reset-password', [AuthController::class, 'showResetPasswordForm'])->name('password.reset');
+Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
+
 // Protected Routes
 Route::middleware(['auth'])->group(function () {
     // Dashboard

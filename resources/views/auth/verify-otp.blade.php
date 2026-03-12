@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" type="text/css" href="{{ asset('vali-master/docs/css/main.css') }}">
     <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
-    <title>Login - Smart EmCa System</title>
+    <title>Verify OTP - Smart EmCa System</title>
     <style>
         .material-half-bg .cover {
             background-color: #940000;
@@ -19,6 +19,12 @@
             background-color: #7a0000;
             border-color: #7a0000;
         }
+        .otp-input {
+            letter-spacing: 15px;
+            font-size: 24px;
+            text-align: center;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -26,21 +32,21 @@
         <div class="cover"></div>
     </section>
 
-    <header class="navbar navbar-expand-md navbar-dark d-flex justify-content-end p-3" style="position: absolute; top:0; right: 0; width: 100%; z-index: 1000;">
-        <a href="{{ route('visits.verify') }}" class="btn btn-outline-light" style="border-width: 2px; font-weight: bold; background-color: rgba(255,255,255,0.1);">
-            <i class="fa fa-pencil-square-o fa-lg fa-fw"></i> CUSTOMER VISIT
-        </a>
-    </header>
-
     <section class="login-content">
         <div class="logo">
             <h1>EmCa Tech</h1>
         </div>
-        <div class="login-box">
-            <form class="login-form" action="{{ route('login') }}" method="POST">
+        <div class="login-box" style="min-height: 480px;">
+            <form class="login-form" action="{{ route('password.otp.check') }}" method="POST">
                 @csrf
-                <h3 class="login-head"><i class="fa fa-lg fa-fw fa-user"></i>SIGN IN</h3>
+                <h3 class="login-head"><i class="fa fa-lg fa-fw fa-shield"></i>VERIFY OTP</h3>
                 
+                @if(session('success'))
+                <div class="alert alert-success">
+                    {{ session('success') }}
+                </div>
+                @endif
+
                 @if(session('error'))
                 <div class="alert alert-danger">
                     {{ session('error') }}
@@ -57,26 +63,19 @@
                 </div>
                 @endif
 
+                <p class="text-muted text-center mb-4">We've sent a 6-digit OTP to <strong>{{ session('reset_phone') }}</strong>.</p>
+
                 <div class="form-group">
-                    <label class="control-label">EMAIL</label>
-                    <input class="form-control" type="email" name="email" placeholder="Email" value="{{ old('email') }}" autofocus required>
+                    <label class="control-label">ENTER OTP</label>
+                    <input class="form-control otp-input" type="text" name="otp" placeholder="000000" maxlength="6" autofocus required>
                 </div>
-                <div class="form-group">
-                    <label class="control-label">PASSWORD</label>
-                    <input class="form-control" type="password" name="password" placeholder="Password" required>
-                </div>
-                <div class="form-group">
-                    <div class="utility">
-                        <div class="animated-checkbox">
-                            <label>
-                                <input type="checkbox" name="remember"><span class="label-text">Stay Signed in</span>
-                            </label>
-                        </div>
-                        <p class="semibold-text mb-2"><a href="{{ route('password.request') }}">Forgot Password ?</a></p>
-                    </div>
-                </div>
+                
                 <div class="form-group btn-container">
-                    <button class="btn btn-primary btn-block" type="submit"><i class="fa fa-sign-in fa-lg fa-fw"></i>SIGN IN</button>
+                    <button class="btn btn-primary btn-block" type="submit"><i class="fa fa-check-circle fa-lg fa-fw"></i>VERIFY OTP</button>
+                </div>
+                
+                <div class="form-group mt-3">
+                    <p class="semibold-text mb-0 text-center"><a href="{{ route('password.request') }}"><i class="fa fa-refresh fa-fw"></i> Resend OTP</a></p>
                 </div>
             </form>
         </div>
@@ -85,11 +84,5 @@
     <script src="{{ asset('vali-master/docs/js/popper.min.js') }}"></script>
     <script src="{{ asset('vali-master/docs/js/bootstrap.min.js') }}"></script>
     <script src="{{ asset('vali-master/docs/js/main.js') }}"></script>
-    <script src="{{ asset('vali-master/docs/js/plugins/pace.min.js') }}"></script>
 </body>
 </html>
-
-
-
-
-

@@ -7,6 +7,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use App\Models\PasswordOtpReset;
+use App\Services\SmsService;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class AuthController extends Controller
 {
@@ -118,5 +122,122 @@ class AuthController extends Controller
 
         return redirect()->route('users.index')
             ->with('success', 'User created successfully!');
+    }
+
+    /**
+     * Show Forgot Password Form
+     */
+    public function showForgotPasswordForm()
+    {
+        return view('auth.forgot-password');
+    }
+
+    /**
+     * Send OTP to Phone
+     */
+    public function sendOtp(Request $request, SmsService $smsService)
+    {
+        $request->validate([
+            'phone' => 'required|string|exists:users,phone',
+        ]);
+
+        $otp = rand(100000, 999999);
+        $expiresAt = Carbon::now()->addMinutes(10);
+
+        PasswordOtpReset::updateOrCreate(
+            ['phone' => $request->phone],
+            [
+                'otp' => $otp,
+                'expires_at' => $expiresAt,
+                'is_verified' => false
+            ]
+        );
+
+        $message = "Your SmartEmCa password reset OTP is: {$otp}. It expires in 10 minutes.";
+        $smsService->sendAndLog($request->phone, $message, 'password_reset_otp');
+
+        session(['reset_phone' => $request->phone]);
+
+        return redirect()->route('password.otp.verify')->with('success', 'OTP has been sent to your phone number.');
+    }
+
+    /**
+     * Show Verify OTP Form
+     */
+    public function showVerifyOtpForm()
+    {
+        if (!session('reset_phone')) {
+            return redirect()->route('password.request');
+        }
+        return view('auth.verify-otp');
+    }
+
+    /**
+     * Verify OTP
+     */
+    public function verifyOtp(Request $request)
+    {
+        $request->validate([
+            'otp' => 'required|string|size:6',
+        ]);
+
+        $phone = session('reset_phone');
+        $reset = PasswordOtpReset::where('phone', $phone)
+            ->where('otp', $request->otp)
+            ->where('expires_at', '>', Carbon::now())
+            ->first();
+
+        if (!$reset) {
+            return back()->with('error', 'Invalid or expired OTP.');
+        }
+
+        $reset->update(['is_verified' => true]);
+
+        return redirect()->route('password.reset')->with('success', 'OTP verified. Now you can change your password.');
+    }
+
+    /**
+     * Show Reset Password Form
+     */
+    public function showResetPasswordForm()
+    {
+        $phone = session('reset_phone');
+        $reset = PasswordOtpReset::where('phone', $phone)->where('is_verified', true)->first();
+
+        if (!$reset) {
+            return redirect()->route('password.request');
+        }
+
+        return view('auth.reset-password');
+    }
+
+    /**
+     * Reset Password
+     */
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $phone = session('reset_phone');
+        $reset = PasswordOtpReset::where('phone', $phone)->where('is_verified', true)->first();
+
+        if (!$reset) {
+            return redirect()->route('password.request');
+        }
+
+        $user = User::where('phone', $phone)->first();
+        if ($user) {
+            $user->update(['password' => Hash::make($request->password)]);
+            
+            // Cleanup
+            $reset->delete();
+            session()->forget('reset_phone');
+
+            return redirect()->route('login')->with('success', 'Password reset successfully. You can now login.');
+        }
+
+        return back()->with('error', 'Something went wrong.');
     }
 }

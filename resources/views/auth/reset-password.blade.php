@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" type="text/css" href="{{ asset('vali-master/docs/css/main.css') }}">
     <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
-    <title>Login - Smart EmCa System</title>
+    <title>Reset Password - Smart EmCa System</title>
     <style>
         .material-half-bg .cover {
             background-color: #940000;
@@ -26,20 +26,14 @@
         <div class="cover"></div>
     </section>
 
-    <header class="navbar navbar-expand-md navbar-dark d-flex justify-content-end p-3" style="position: absolute; top:0; right: 0; width: 100%; z-index: 1000;">
-        <a href="{{ route('visits.verify') }}" class="btn btn-outline-light" style="border-width: 2px; font-weight: bold; background-color: rgba(255,255,255,0.1);">
-            <i class="fa fa-pencil-square-o fa-lg fa-fw"></i> CUSTOMER VISIT
-        </a>
-    </header>
-
     <section class="login-content">
         <div class="logo">
             <h1>EmCa Tech</h1>
         </div>
-        <div class="login-box">
-            <form class="login-form" action="{{ route('login') }}" method="POST">
+        <div class="login-box" style="min-height: 520px;">
+            <form class="login-form" action="{{ route('password.update') }}" method="POST">
                 @csrf
-                <h3 class="login-head"><i class="fa fa-lg fa-fw fa-user"></i>SIGN IN</h3>
+                <h3 class="login-head"><i class="fa fa-lg fa-fw fa-key"></i>NEW PASSWORD</h3>
                 
                 @if(session('error'))
                 <div class="alert alert-danger">
@@ -57,26 +51,20 @@
                 </div>
                 @endif
 
+                <p class="text-muted text-center mb-4">OTP Verified! Please enter your new password below.</p>
+
                 <div class="form-group">
-                    <label class="control-label">EMAIL</label>
-                    <input class="form-control" type="email" name="email" placeholder="Email" value="{{ old('email') }}" autofocus required>
+                    <label class="control-label">NEW PASSWORD</label>
+                    <input class="form-control" type="password" name="password" placeholder="Min 8 characters" autofocus required>
                 </div>
+
                 <div class="form-group">
-                    <label class="control-label">PASSWORD</label>
-                    <input class="form-control" type="password" name="password" placeholder="Password" required>
+                    <label class="control-label">CONFIRM PASSWORD</label>
+                    <input class="form-control" type="password" name="password_confirmation" placeholder="Confirm new password" required>
                 </div>
-                <div class="form-group">
-                    <div class="utility">
-                        <div class="animated-checkbox">
-                            <label>
-                                <input type="checkbox" name="remember"><span class="label-text">Stay Signed in</span>
-                            </label>
-                        </div>
-                        <p class="semibold-text mb-2"><a href="{{ route('password.request') }}">Forgot Password ?</a></p>
-                    </div>
-                </div>
+                
                 <div class="form-group btn-container">
-                    <button class="btn btn-primary btn-block" type="submit"><i class="fa fa-sign-in fa-lg fa-fw"></i>SIGN IN</button>
+                    <button class="btn btn-primary btn-block" type="submit"><i class="fa fa-save fa-lg fa-fw"></i>RESET PASSWORD</button>
                 </div>
             </form>
         </div>
@@ -85,11 +73,5 @@
     <script src="{{ asset('vali-master/docs/js/popper.min.js') }}"></script>
     <script src="{{ asset('vali-master/docs/js/bootstrap.min.js') }}"></script>
     <script src="{{ asset('vali-master/docs/js/main.js') }}"></script>
-    <script src="{{ asset('vali-master/docs/js/plugins/pace.min.js') }}"></script>
 </body>
 </html>
-
-
-
-
-
