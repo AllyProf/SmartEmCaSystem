@@ -41,6 +41,12 @@
                 @csrf
                 <h3 class="login-head"><i class="fa fa-lg fa-fw fa-user"></i>SIGN IN</h3>
                 
+                @if(session('success'))
+                <div class="alert alert-success">
+                    {{ session('success') }}
+                </div>
+                @endif
+
                 @if(session('error'))
                 <div class="alert alert-danger">
                     {{ session('error') }}
