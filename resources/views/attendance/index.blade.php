@@ -9,57 +9,72 @@
 <div class="row">
     <!-- Real-time Clock Widget -->
     <div class="col-md-3">
-        <div class="tile p-3 text-center bg-primary text-white">
-            <h5 class="mb-0">Current Server Time</h5>
-            <h2 id="liveClock" class="font-weight-bold">--:--:--</h2>
-            <p class="mb-0">{{ \Carbon\Carbon::today()->format('l, d M Y') }}</p>
+        <div class="tile p-3 text-center shadow-sm" style="background-color: #940000; color: #ffffff; border-radius: 10px; border-bottom: 5px solid #000000;">
+            <p class="mb-1 text-uppercase small" style="letter-spacing: 1px; opacity: 0.8;">Current Server Time</p>
+            <h2 id="liveClock" class="font-weight-bold mb-0" style="font-size: 2.2rem;">--:--:--</h2>
+            <p class="mb-0 small">{{ \Carbon\Carbon::today()->format('l, d M Y') }}</p>
         </div>
     </div>
     
-    <!-- Stats Summary -->
+    <!-- Stats Summary: Late Comers -->
     <div class="col-md-3">
-        <div class="tile p-3">
-            <h6>This Week's Late Comers</h6>
-            <ul class="list-unstyled mb-0">
+        <div class="tile p-3 shadow-sm" style="border-radius: 10px; border-left: 5px solid #940000; min-height: 125px;">
+            <p class="text-uppercase small font-weight-bold mb-2" style="color: #940000; letter-spacing: 0.5px;">This Week's Late Comers</p>
+            <div class="px-1">
                 @forelse($weeklyLateComers as $stat)
-                    <li class="d-flex justify-content-between">
-                        <span>{{ $stat->name }}</span>
-                        <span class="badge badge-danger">{{ $stat->frequency }} times</span>
-                    </li>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="font-weight-bold text-dark" style="font-size: 0.9rem;">{{ $stat->name }}</span>
+                        <span class="badge badge-pill text-white" style="background-color: #940000;">{{ $stat->frequency }} times</span>
+                    </div>
                 @empty
-                    <li class="text-muted small">No late records this week</li>
+                    <div class="text-center py-2">
+                        <span class="text-muted small italic">No late records this week</span>
+                    </div>
                 @endforelse
-            </ul>
+            </div>
         </div>
     </div>
     
+    <!-- Stats Summary: Early Arrivals -->
     <div class="col-md-3">
-        <div class="tile p-3">
-            <h6>Top Early Arrivals</h6>
-            <ul class="list-unstyled mb-0">
+        <div class="tile p-3 shadow-sm" style="border-radius: 10px; border-left: 5px solid #000000; min-height: 125px;">
+            <p class="text-uppercase small font-weight-bold mb-2" style="color: #000000; letter-spacing: 0.5px;">Top Early Arrivals</p>
+            <div class="px-1">
                 @forelse($weeklyEarlyArrivals as $stat)
-                    <li class="d-flex justify-content-between">
-                        <span>{{ $stat->name }}</span>
-                        <span class="badge badge-success">{{ $stat->frequency }} times</span>
-                    </li>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="font-weight-bold text-dark" style="font-size: 0.9rem;">{{ $stat->name }}</span>
+                        <span class="badge badge-pill text-white" style="background-color: #000000;">{{ $stat->frequency }} times</span>
+                    </div>
                 @empty
-                    <li class="text-muted small">No early records this week</li>
+                    <div class="text-center py-2">
+                        <span class="text-muted small italic">No early records this week</span>
+                    </div>
                 @endforelse
-            </ul>
+            </div>
         </div>
     </div>
 
-    <!-- Active Sessions Info -->
+    <!-- Active Sessions Info / Rules -->
     <div class="col-md-3">
-        <div class="tile p-3 text-center bg-info text-white">
-            <h5>Rules Summary</h5>
-            <p class="mb-1 small">In: <b>{{ \Carbon\Carbon::parse($expectedInTime)->format('h:i A') }}</b></p>
-            <p class="mb-0 small">Out: <b>{{ \Carbon\Carbon::parse($expectedOutTime)->format('h:i A') }}</b></p>
-            <button type="button" class="btn btn-sm btn-light mt-2" data-toggle="modal" data-target="#settingsModal">
-                <i class="fa fa-pencil"></i> Adjust Rules
+        <div class="tile p-3 text-center shadow-sm" style="background-color: #000000; color: #ffffff; border-radius: 10px;">
+            <p class="mb-2 text-uppercase small font-weight-bold" style="letter-spacing: 1px; color: #940000;">Rules Summary</p>
+            <div class="d-flex justify-content-around mb-2">
+                <div>
+                    <span class="d-block small text-muted">In</span>
+                    <span class="font-weight-bold" style="font-size: 1.1rem;">{{ \Carbon\Carbon::parse($expectedInTime)->format('h:i A') }}</span>
+                </div>
+                <div style="width: 1px; background-color: rgba(255,255,255,0.2); height: 35px;"></div>
+                <div>
+                    <span class="d-block small text-muted">Out</span>
+                    <span class="font-weight-bold" style="font-size: 1.1rem;">{{ \Carbon\Carbon::parse($expectedOutTime)->format('h:i A') }}</span>
+                </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-block text-white" style="background-color: #940000; border-radius: 5px;" data-toggle="modal" data-target="#settingsModal">
+                <i class="fa fa-cog"></i> ADJUST POLICY
             </button>
         </div>
     </div>
+</div>
 </div>
 
 <div class="row mt-3">
@@ -88,16 +103,16 @@
 
             <div class="table-responsive">
                 <table class="table table-hover table-bordered" id="attendanceTable">
-                    <thead class="bg-light">
-                        <tr>
-                            <th>Staff Info</th>
-                            <th>Time In</th>
-                            <th>Time Out</th>
-                            <th>Working Hours</th>
-                            <th>Status & Location</th>
+                    <thead>
+                        <tr style="background-color: #000000; color: #ffffff;">
+                            <th class="border-0">Staff Info</th>
+                            <th class="border-0">Time In</th>
+                            <th class="border-0">Time Out</th>
+                            <th class="border-0">Working Hours</th>
+                            <th class="border-0">Status & Location</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody style="border-top: 3px solid #940000;">
                         @forelse($attendances as $log)
                             <tr>
                                 <td>
@@ -170,8 +185,8 @@
 <div class="modal fade" id="settingsModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content border-0">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="fa fa-cogs"></i> Attendance Policy Settings</h5>
+            <div class="modal-header text-white" style="background-color: #940000; border-bottom: 3px solid #000000;">
+                <h5 class="modal-title font-weight-bold italic text-uppercase" style="letter-spacing: 1px;"><i class="fa fa-cogs"></i> Attendance Policy Settings</h5>
                 <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -193,9 +208,9 @@
                                value="{{ \Carbon\Carbon::parse($expectedOutTime)->format('H:i') }}">
                     </div>
                 </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary px-4">Save Changes</button>
+                <div class="modal-footer bg-light" style="border-top: 1px solid #dee2e6;">
+                    <button type="button" class="btn btn-secondary border-0" data-dismiss="modal" style="border-radius: 5px;">Cancel</button>
+                    <button type="submit" class="btn text-white px-4 border-0" style="background-color: #940000; border-radius: 5px;">Save Changes</button>
                 </div>
             </form>
         </div>
