@@ -17,15 +17,21 @@
             --primary: #940000;
             --secondary: #6c757d;
         }
+        * {
+            font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif !important;
+        }
         body {
-            font-family: "Century Gothic", AppleGothic, sans-serif;
+            font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
+        }
+        .app-header {
+            background-color: #940000 !important;
         }
         .app-header__logo {
-            background-color: #940000 !important;
+            background-color: #000000 !important; /* Logo area black for contrast against red header */
             font-family: inherit;
         }
         .app-sidebar__user {
-            background: linear-gradient(135deg, #940000 0%, #b30000 100%);
+            background: #000000 !important; /* Removed red from photo section as requested */
         }
         .widget-small.primary.coloured-icon {
             background-color: #940000;

@@ -8,6 +8,9 @@
     <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
     <title>Reset Password - Smart EmCa System</title>
     <style>
+        * {
+            font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif !important;
+        }
         .material-half-bg .cover {
             background-color: #940000;
         }
@@ -18,6 +21,12 @@
         .btn-primary:hover {
             background-color: #7a0000;
             border-color: #7a0000;
+        }
+        a {
+            color: #940000;
+        }
+        a:hover {
+            color: #7a0000;
         }
     </style>
 </head>
