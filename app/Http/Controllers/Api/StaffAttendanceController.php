@@ -18,8 +18,8 @@ class StaffAttendanceController extends Controller
     private const HQ_LATITUDE = -3.3520992;
     private const HQ_LONGITUDE = 37.3375088;
     
-    // The strict 70-meter limit
-    private const ALLOWED_RADIUS = 70.0;
+    // The strict 40-meter limit
+    private const ALLOWED_RADIUS = 40.0;
 
     /**
      * Staff Login - Returns API token
