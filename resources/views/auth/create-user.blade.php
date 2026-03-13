@@ -42,11 +42,14 @@
                             @if(auth()->user()->isSuperAdmin())
                             <option value="ceo" {{ old('role') == 'ceo' ? 'selected' : '' }}>CEO</option>
                             @endif
+                            @if(auth()->user()->isSuperAdmin() || auth()->user()->isCeo() || auth()->user()->isHr())
+                            <option value="hr" {{ old('role') == 'hr' ? 'selected' : '' }}>HR Manager</option>
+                            @endif
                             <option value="staff" {{ old('role') == 'staff' ? 'selected' : '' }}>Staff</option>
                         </select>
                         <small class="form-text text-muted">
-                            @if(auth()->user()->isCeo())
-                            You can only create staff accounts.
+                            @if(auth()->user()->isCeo() || auth()->user()->isHr())
+                            You cannot create CEO accounts.
                             @endif
                         </small>
                     </div>

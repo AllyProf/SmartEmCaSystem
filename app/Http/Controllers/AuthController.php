@@ -64,7 +64,7 @@ class AuthController extends Controller
      */
     public function users()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo()) {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo() && !auth()->user()->isHr()) {
             abort(403);
         }
 
@@ -80,7 +80,7 @@ class AuthController extends Controller
      */
     public function createUser()
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo()) {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo() && !auth()->user()->isHr()) {
             abort(403);
         }
         return view('auth.create-user');
@@ -91,7 +91,7 @@ class AuthController extends Controller
      */
     public function storeUser(Request $request)
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo()) {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo() && !auth()->user()->isHr()) {
             abort(403);
         }
 
@@ -99,17 +99,22 @@ class AuthController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|in:ceo,staff',
+            'role' => 'required|in:ceo,hr,staff',
         ]);
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
         }
 
-        // Only Super Admin can create CEO, CEO can only create staff
+        // Only Super Admin can create CEO, CEO/HR can only create HR/staff
         $user = auth()->user();
-        if ($user->isCeo() && $request->role === 'ceo') {
+        if (($user->isCeo() || $user->isHr()) && $request->role === 'ceo') {
             return back()->with('error', 'You do not have permission to create CEO accounts.')->withInput();
+        }
+        
+        // Let's also say HR can only create staff, but allow CEO to create HR. Or HR can create HR as well.
+        if ($user->isHr() && !in_array($request->role, ['staff', 'hr'])) {
+             return back()->with('error', 'You can only create Staff or HR accounts.')->withInput();
         }
 
         User::create([
@@ -246,7 +251,7 @@ class AuthController extends Controller
      */
     public function resetDevice(User $user)
     {
-        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo()) {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo() && !auth()->user()->isHr()) {
             abort(403);
         }
 

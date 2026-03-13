@@ -125,7 +125,7 @@
                     <span class="app-menu__label">Confirmations</span>
                 </a>
             </li>
-            @if(auth()->user()->role === 'ceo' || auth()->user()->role === 'super_admin')
+            @if(auth()->user()->role === 'ceo' || auth()->user()->role === 'super_admin' || auth()->user()->role === 'hr')
             <li>
                 <a class="app-menu__item {{ request()->routeIs('attendance.*') ? 'active' : '' }}" href="{{ route('attendance.index') }}">
                     <i class="app-menu__icon fa fa-clock-o"></i>

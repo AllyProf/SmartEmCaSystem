@@ -12,7 +12,7 @@ class UserPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->isSuperAdmin() || $user->isCeo();
+        return $user->isSuperAdmin() || $user->isCeo() || $user->isHr();
     }
 
     /**
@@ -20,7 +20,7 @@ class UserPolicy
      */
     public function view(User $user, User $model): bool
     {
-        return $user->isSuperAdmin() || $user->isCeo();
+        return $user->isSuperAdmin() || $user->isCeo() || $user->isHr();
     }
 
     /**
@@ -28,7 +28,7 @@ class UserPolicy
      */
     public function create(User $user): bool
     {
-        return $user->isSuperAdmin() || $user->isCeo();
+        return $user->isSuperAdmin() || $user->isCeo() || $user->isHr();
     }
 
     /**
@@ -36,7 +36,7 @@ class UserPolicy
      */
     public function manageUsers(User $user): bool
     {
-        return $user->isSuperAdmin() || $user->isCeo();
+        return $user->isSuperAdmin() || $user->isCeo() || $user->isHr();
     }
 
     /**

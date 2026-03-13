@@ -90,6 +90,11 @@ class User extends Authenticatable
         return $this->role === 'ceo';
     }
 
+    public function isHr()
+    {
+        return $this->role === 'hr';
+    }
+
     public function isStaff()
     {
         return $this->role === 'staff';
