@@ -319,6 +319,7 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users,email,' . $user->id,
             'phone' => 'required|string|max:20|unique:users,phone,' . $user->id,
             'role' => 'required|in:ceo,hr,staff',
+            'password' => 'nullable|string|min:8|confirmed',
         ]);
 
         if ($validator->fails()) {
@@ -343,13 +344,6 @@ class AuthController extends Controller
         ];
 
         if ($request->filled('password')) {
-            $validator = Validator::make($request->all(), [
-                'password' => 'required|string|min:8|confirmed',
-            ]);
-            
-            if ($validator->fails()) {
-                return back()->withErrors($validator)->withInput();
-            }
             $updateData['password'] = Hash::make($request->password);
         }
 

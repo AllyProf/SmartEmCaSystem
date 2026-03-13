@@ -46,7 +46,7 @@
                         <div class="form-group col-md-6">
                             <label class="control-label">Password</label>
                             <div class="input-group">
-                                <input class="form-control" type="password" name="password" id="password">
+                                <input class="form-control" type="password" name="password" id="password" autocomplete="new-password">
                                 <div class="input-group-append">
                                     <span class="input-group-text cursor-pointer toggle-password" data-target="#password">
                                         <i class="fa fa-eye"></i>
@@ -58,7 +58,7 @@
                         <div class="form-group col-md-6">
                             <label class="control-label">Confirm Password</label>
                             <div class="input-group">
-                                <input class="form-control" type="password" name="password_confirmation" id="password_confirmation">
+                                <input class="form-control" type="password" name="password_confirmation" id="password_confirmation" autocomplete="new-password">
                                 <div class="input-group-append">
                                     <span class="input-group-text cursor-pointer toggle-password" data-target="#password_confirmation">
                                         <i class="fa fa-eye"></i>
