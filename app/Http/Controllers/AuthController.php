@@ -118,7 +118,7 @@ class AuthController extends Controller
              return back()->with('error', 'You can only create Staff or HR accounts.')->withInput();
         }
 
-        User::create([
+        $newUser = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'phone' => $request->phone,
@@ -126,6 +126,12 @@ class AuthController extends Controller
             'role' => $request->role,
             'created_by' => auth()->id(),
         ]);
+
+        // Auto-generate a staff ID (e.g., EMC005)
+        $newUser->update([
+            'staff_id' => 'EMC' . str_pad($newUser->id, 3, '0', STR_PAD_LEFT)
+        ]);
+
 
         return redirect()->route('users.index')
             ->with('success', 'User created successfully!');

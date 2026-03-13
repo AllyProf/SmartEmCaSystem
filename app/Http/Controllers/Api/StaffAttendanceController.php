@@ -100,10 +100,10 @@ class StaffAttendanceController extends Controller
             'token'   => $token,
             'staff'   => [
                 'id'           => $user->id,
-                'staff_id'     => $user->staff_id,
+                'staff_id'     => $user->staff_id ?? '',
                 'name'         => $user->name,
                 'email'        => $user->email,
-                'phone_number' => $user->phone,
+                'phone_number' => $user->phone ?? '',
                 'role'         => $user->role,
             ],
             'expires_at'  => $expiresAt->toIso8601String(),
@@ -139,10 +139,10 @@ class StaffAttendanceController extends Controller
             'success' => true,
             'staff'   => [
                 'id'           => $user->id,
-                'staff_id'     => $user->staff_id,
+                'staff_id'     => $user->staff_id ?? '',
                 'name'         => $user->name,
                 'email'        => $user->email,
-                'phone_number' => $user->phone,
+                'phone_number' => $user->phone ?? '',
                 'role'         => $user->role,
                 'joined_at'    => $user->created_at->format('M d, Y'),
             ]
