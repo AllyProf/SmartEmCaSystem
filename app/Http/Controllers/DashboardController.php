@@ -14,6 +14,19 @@ class DashboardController extends Controller
      */
     public function index()
     {
+        $user = auth()->user();
+
+        if ($user->role === 'hr') {
+            $stats = [
+                'total_staff' => \App\Models\User::whereIn('role', ['staff', 'hr'])->count(),
+                'present_today' => \App\Models\StaffAttendance::whereDate('signed_in_at', today())->count(),
+                'recent_users' => \App\Models\User::orderBy('created_at', 'desc')->limit(5)->get(),
+                'recent_attendance' => \App\Models\StaffAttendance::with('user')->orderBy('signed_in_at', 'desc')->limit(5)->get(),
+            ];
+
+            return view('dashboard.hr', compact('stats'));
+        }
+
         $stats = [
             'total_customers' => Customer::count(),
             'total_sms_sent' => SmsLog::where('status', 'sent')->count(),

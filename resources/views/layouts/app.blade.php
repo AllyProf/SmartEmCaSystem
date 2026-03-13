@@ -101,6 +101,7 @@
                     <span class="app-menu__label">Dashboard</span>
                 </a>
             </li>
+            @if(auth()->user()->role !== 'hr')
             <li>
                 <a class="app-menu__item {{ request()->routeIs('customers.*') ? 'active' : '' }}" href="{{ route('customers.index') }}">
                     <i class="app-menu__icon fa fa-users"></i>
@@ -125,6 +126,7 @@
                     <span class="app-menu__label">Confirmations</span>
                 </a>
             </li>
+            @endif
             @if(auth()->user()->role === 'ceo' || auth()->user()->role === 'super_admin' || auth()->user()->role === 'hr')
             <li>
                 <a class="app-menu__item {{ request()->routeIs('attendance.*') ? 'active' : '' }}" href="{{ route('attendance.index') }}">
