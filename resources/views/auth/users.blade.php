@@ -26,9 +26,11 @@
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Role</th>
+                                <th>Status</th>
                                 <th>Device Lock</th>
                                 <th>Created By</th>
                                 <th>Created At</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -37,6 +39,13 @@
                                 <td>{{ $user->name }}</td>
                                 <td>{{ $user->email }}</td>
                                 <td><span class="badge badge-info">{{ ucfirst(str_replace('_', ' ', $user->role)) }}</span></td>
+                                <td>
+                                    @if($user->is_active)
+                                        <span class="badge badge-success">Active</span>
+                                    @else
+                                        <span class="badge badge-danger">Inactive</span>
+                                    @endif
+                                </td>
                                 <td>
                                     @if($user->device_id)
                                         <div class="d-flex align-items-center justify-content-between">
@@ -54,6 +63,26 @@
                                 </td>
                                 <td>{{ $user->creator->name ?? 'System' }}</td>
                                 <td>{{ $user->created_at->format('M d, Y') }}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="{{ route('users.edit', $user->id) }}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                            <i class="fa fa-pencil"></i>
+                                        </a>
+                                        <form action="{{ route('users.toggle_status', $user->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to {{ $user->is_active ? 'deactivate' : 'activate' }} this user?')">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-{{ $user->is_active ? 'warning' : 'success' }}" title="{{ $user->is_active ? 'Deactivate' : 'Activate' }}">
+                                                <i class="fa fa-power-off"></i>
+                                            </button>
+                                        </form>
+                                        <form action="{{ route('users.destroy', $user->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                                <i class="fa fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
                             </tr>
                             @empty
                             <tr>

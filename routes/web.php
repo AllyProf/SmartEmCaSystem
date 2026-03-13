@@ -39,10 +39,14 @@ Route::middleware(['auth'])->group(function () {
     // Follow-ups
     Route::resource('follow-ups', FollowUpController::class);
 
-    // User Management (CEO and Super Admin only)
+    // User Management
     Route::get('/users', [AuthController::class, 'users'])->name('users.index');
     Route::get('/users/create', [AuthController::class, 'createUser'])->name('users.create');
     Route::post('/users', [AuthController::class, 'storeUser'])->name('users.store');
+    Route::get('/users/{user}/edit', [AuthController::class, 'editUser'])->name('users.edit');
+    Route::put('/users/{user}', [AuthController::class, 'updateUser'])->name('users.update');
+    Route::delete('/users/{user}', [AuthController::class, 'destroyUser'])->name('users.destroy');
+    Route::post('/users/{user}/toggle-status', [AuthController::class, 'toggleUserStatus'])->name('users.toggle_status');
     Route::post('/users/{user}/reset-device', [AuthController::class, 'resetDevice'])->name('users.reset_device');
 
     // Admin View for Visit Confirmations

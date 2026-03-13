@@ -267,4 +267,126 @@ class AuthController extends Controller
 
         return back()->with('success', "Device lock has been reset for {$user->name}. They can now login from a new phone.");
     }
+
+    /**
+     * Show edit user form
+     */
+    public function editUser(User $user)
+    {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo() && !auth()->user()->isHr()) {
+            abort(403);
+        }
+
+        // Only super admin can edit CEO
+        if ($user->role === 'ceo' && !auth()->user()->isSuperAdmin() && auth()->id() !== $user->id) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        return view('auth.edit-user', compact('user'));
+    }
+
+    /**
+     * Update user details
+     */
+    public function updateUser(Request $request, User $user)
+    {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo() && !auth()->user()->isHr()) {
+            abort(403);
+        }
+
+        // Only super admin can edit CEO unless they edit themselves
+        if ($user->role === 'ceo' && !auth()->user()->isSuperAdmin() && auth()->id() !== $user->id) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'phone' => 'required|string|max:20|unique:users,phone,' . $user->id,
+            'role' => 'required|in:ceo,hr,staff',
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        // Check permission limits on role assignment
+        $authUser = auth()->user();
+        if (($authUser->isCeo() || $authUser->isHr()) && $request->role === 'ceo' && $user->role !== 'ceo') {
+            return back()->with('error', 'You do not have permission to assign CEO accounts.')->withInput();
+        }
+        
+        if ($authUser->isHr() && !in_array($request->role, ['staff', 'hr'])) {
+             return back()->with('error', 'You can only assign Staff or HR roles.')->withInput();
+        }
+
+        $updateData = [
+            'name' => $request->name,
+            'email' => $request->email,
+            'phone' => $request->phone,
+            'role' => $request->role,
+        ];
+
+        if ($request->filled('password')) {
+            $request->validate(['password' => 'string|min:8|confirmed']);
+            $updateData['password'] = Hash::make($request->password);
+        }
+
+        $user->update($updateData);
+
+        return redirect()->route('users.index')->with('success', 'User updated successfully!');
+    }
+
+    /**
+     * Toggle User Active Status
+     */
+    public function toggleUserStatus(User $user)
+    {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo() && !auth()->user()->isHr()) {
+            abort(403);
+        }
+
+        // Cannot toggle self
+        if (auth()->id() === $user->id) {
+            return back()->with('error', 'You cannot deactivate your own account.');
+        }
+
+        // Ceos can only be deactivated by Super Admin
+        if ($user->role === 'ceo' && !auth()->user()->isSuperAdmin()) {
+            return back()->with('error', 'Only the Super Admin can modify CEO status.');
+        }
+
+        $user->update(['is_active' => !$user->is_active]);
+
+        $status = $user->is_active ? 'activated' : 'deactivated';
+        return back()->with('success', "User {$user->name} has been {$status}.");
+    }
+
+    /**
+     * Delete user
+     */
+    public function destroyUser(User $user)
+    {
+        if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo() && !auth()->user()->isHr()) {
+            abort(403);
+        }
+
+        // Cannot delete self
+        if (auth()->id() === $user->id) {
+            return back()->with('error', 'You cannot delete your own account.');
+        }
+
+        // Controls on deleting higher roles
+        if ($user->role === 'ceo' && !auth()->user()->isSuperAdmin()) {
+            return back()->with('error', 'Only Super Admin can delete CEO accounts.');
+        }
+
+        if ($user->role === 'hr' && auth()->user()->isHr()) {
+            return back()->with('error', 'HR cannot delete other HR accounts.');
+        }
+
+        $user->delete();
+
+        return redirect()->route('users.index')->with('success', 'User deleted successfully.');
+    }
 }
