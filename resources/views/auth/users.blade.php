@@ -16,161 +16,138 @@
         <div class="tile">
             <div class="tile-title-w-btn">
                 <h3 class="title">All Users</h3>
-                <p><a class="btn btn-primary icon-btn" href="{{ route('users.create') }}"><i class="fa fa-plus"></i>Add User</a></p>
-            </div>
-            <div class="tile-body">
-                <div class="table-responsive">
-                    <table class="table table-hover table-bordered">
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th>Device Lock</th>
-                                <th>Created By</th>
-                                <th>Created At</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($users as $user)
-                            <tr>
-                                <td>{{ $user->name }}</td>
-                                <td>{{ $user->email }}</td>
-                                <td><span class="badge badge-info">{{ ucfirst(str_replace('_', ' ', $user->role)) }}</span></td>
-                                <td>
-                                    @if($user->is_active)
-                                        <span class="badge badge-success">Active</span>
-                                    @else
-                                        <span class="badge badge-danger">Inactive</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if($user->device_id)
-                                        <div class="d-flex align-items-center justify-content-between">
-                                            <span class="badge badge-success"><i class="fa fa-lock"></i> Locked</span>
-                                            <form action="{{ route('users.reset_device', $user->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to reset this device lock? The staff will be able to login from a different phone.')">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline-danger py-0" title="Reset Device Lock">
-                                                    <i class="fa fa-refresh"></i> Reset
-                                                </button>
-                                            </form>
-                                        </div>
-                                    @else
-                                        <span class="badge badge-secondary">Not Linked</span>
-                                    @endif
-                                </td>
-                                <td>{{ $user->creator->name ?? 'System' }}</td>
-                                <td>{{ $user->created_at->format('M d, Y') }}</td>
-                                <td>
-                                    <div class="btn-group">
-                                        <a href="{{ route('users.edit', $user->id) }}" class="btn btn-sm btn-outline-primary" title="Edit">
-                                            <i class="fa fa-pencil"></i>
-                                        </a>
-                                        <form action="{{ route('users.toggle_status', $user->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to {{ $user->is_active ? 'deactivate' : 'activate' }} this user?')">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-{{ $user->is_active ? 'warning' : 'success' }}" title="{{ $user->is_active ? 'Deactivate' : 'Activate' }}">
-                                                <i class="fa fa-power-off"></i>
-                                            </button>
-                                        </form>
-                                        <form action="{{ route('users.destroy', $user->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
-                                                <i class="fa fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                            @empty
-                            <tr>
-                                <td colspan="5" class="text-center">No users found. <a href="{{ route('users.create') }}">Add one now</a></td>
-                            </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
-                </div>
-                @if($users->hasPages())
-                <div class="mt-3">
-                    <nav aria-label="Page navigation">
-                        <ul class="pagination justify-content-center">
-                            {{-- Previous Page Link --}}
-                            @if ($users->onFirstPage())
-                                <li class="page-item disabled">
-                                    <span class="page-link">Previous</span>
-                                </li>
-                            @else
-                                <li class="page-item">
-                                    <a class="page-link" href="{{ $users->previousPageUrl() }}" rel="prev">Previous</a>
-                                </li>
-                            @endif
-
-                            {{-- Pagination Elements --}}
-                            @php
-                                $currentPage = $users->currentPage();
-                                $lastPage = $users->lastPage();
-                                $startPage = max(1, $currentPage - 2);
-                                $endPage = min($lastPage, $currentPage + 2);
-                            @endphp
-
-                            @if($startPage > 1)
-                                <li class="page-item">
-                                    <a class="page-link" href="{{ $users->url(1) }}">1</a>
-                                </li>
-                                @if($startPage > 2)
-                                    <li class="page-item disabled">
-                                        <span class="page-link">...</span>
-                                    </li>
-                                @endif
-                            @endif
-
-                            @for($page = $startPage; $page <= $endPage; $page++)
-                                @if ($page == $currentPage)
-                                    <li class="page-item active">
-                                        <span class="page-link">{{ $page }}</span>
-                                    </li>
-                                @else
-                                    <li class="page-item">
-                                        <a class="page-link" href="{{ $users->url($page) }}">{{ $page }}</a>
-                                    </li>
-                                @endif
-                            @endfor
-
-                            @if($endPage < $lastPage)
-                                @if($endPage < $lastPage - 1)
-                                    <li class="page-item disabled">
-                                        <span class="page-link">...</span>
-                                    </li>
-                                @endif
-                                <li class="page-item">
-                                    <a class="page-link" href="{{ $users->url($lastPage) }}">{{ $lastPage }}</a>
-                                </li>
-                            @endif
-
-                            {{-- Next Page Link --}}
-                            @if ($users->hasMorePages())
-                                <li class="page-item">
-                                    <a class="page-link" href="{{ $users->nextPageUrl() }}" rel="next">Next</a>
-                                </li>
-                            @else
-                                <li class="page-item disabled">
-                                    <span class="page-link">Next</span>
-                                </li>
-                            @endif
-                        </ul>
-                    </nav>
-                    <div class="text-center mt-2">
-                        <small class="text-muted">
-                            Showing {{ $users->firstItem() }} to {{ $users->lastItem() }} of {{ $users->total() }} users
-                        </small>
+                <div class="d-flex align-items-center">
+                    <div class="form-group mb-0 mr-3">
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text"><i class="fa fa-search"></i></span>
+                            </div>
+                            <input type="text" id="user-search" class="form-control" placeholder="Search users..." autocomplete="off">
+                        </div>
                     </div>
+                    <a class="btn btn-primary icon-btn" href="{{ route('users.create') }}"><i class="fa fa-plus"></i>Add User</a>
                 </div>
-                @endif
+            </div>
+            <div class="tile-body" id="user-table-container">
+                @include('auth.partials._user_table')
             </div>
         </div>
     </div>
 </div>
+
+{{-- Hidden form for actions --}}
+<form id="action-form" method="POST" style="display:none;">
+    @csrf
+    <input type="hidden" name="_method" id="action-method" value="POST">
+</form>
 @endsection
+
+@push('scripts')
+<script>
+    $(document).ready(function() {
+        // Real-time search
+        let searchTimer;
+        $('#user-search').on('keyup', function() {
+            clearTimeout(searchTimer);
+            let query = $(this).val();
+            
+            searchTimer = setTimeout(function() {
+                fetchUsers(query);
+            }, 500); // Wait 500ms after last keystroke
+        });
+
+        function fetchUsers(query = '', page = 1) {
+            $('#user-table-container').css('opacity', '0.5');
+            $.ajax({
+                url: "{{ route('users.index') }}?search=" + query + "&page=" + page,
+                type: 'GET',
+                success: function(data) {
+                    $('#user-table-container').html(data);
+                    $('#user-table-container').css('opacity', '1');
+                }
+            });
+        }
+
+        // Pagination click handling
+        $(document).on('click', '#pagination-links a', function(e) {
+            e.preventDefault();
+            let page = $(this).attr('href').split('page=')[1];
+            let query = $('#user-search').val();
+            fetchUsers(query, page);
+        });
+
+        // SweetAlert Delete
+        $(document).on('click', '.btn-delete-user', function() {
+            let url = $(this).data('url');
+            let name = $(this).data('name');
+            
+            Swal.fire({
+                title: 'Delete User?',
+                text: "Are you sure you want to delete " + name + "? This action cannot be undone.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#action-form').attr('action', url);
+                    $('#action-method').val('DELETE');
+                    $('#action-form').submit();
+                }
+            });
+        });
+
+        // SweetAlert Toggle Status
+        $(document).on('click', '.btn-toggle-status', function() {
+            let url = $(this).data('url');
+            let name = $(this).data('name');
+            let status = $(this).data('status');
+            let actionText = status === 'activate' ? 'activate' : 'deactivate';
+            
+            Swal.fire({
+                title: ucfirst(actionText) + ' User?',
+                text: "Are you sure you want to " + actionText + " " + name + "?",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#940000',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, ' + actionText + ' it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#action-form').attr('action', url);
+                    $('#action-method').val('POST');
+                    $('#action-form').submit();
+                }
+            });
+        });
+
+        // SweetAlert Reset Device
+        $(document).on('click', '.btn-reset-device', function() {
+            let url = $(this).data('url');
+            let name = $(this).data('name');
+            
+            Swal.fire({
+                title: 'Reset Device Lock?',
+                text: "Reset device lock for " + name + "? They will be able to login from a new phone.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#940000',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Yes, reset it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#action-form').attr('action', url);
+                    $('#action-method').val('POST');
+                    $('#action-form').submit();
+                }
+            });
+        });
+
+        function ucfirst(string) {
+            return string.charAt(0).toUpperCase() + string.slice(1);
+        }
+    });
+</script>
+@endpush
 

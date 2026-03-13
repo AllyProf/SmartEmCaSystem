@@ -62,15 +62,30 @@ class AuthController extends Controller
     /**
      * Show user management (for CEO and Super Admin)
      */
-    public function users()
+    public function users(Request $request)
     {
         if (!auth()->user()->isSuperAdmin() && !auth()->user()->isCeo() && !auth()->user()->isHr()) {
             abort(403);
         }
 
-        $users = User::with('creator')
-            ->orderBy('created_at', 'desc')
+        $query = User::with('creator');
+
+        if ($request->has('search')) {
+            $search = $request->get('search');
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('email', 'LIKE', "%{$search}%")
+                  ->orWhere('phone', 'LIKE', "%{$search}%")
+                  ->orWhere('staff_id', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $users = $query->orderBy('created_at', 'desc')
             ->paginate(20);
+
+        if ($request->ajax()) {
+            return view('auth.partials._user_table', compact('users'))->render();
+        }
 
         return view('auth.users', compact('users'));
     }
@@ -328,7 +343,13 @@ class AuthController extends Controller
         ];
 
         if ($request->filled('password')) {
-            $request->validate(['password' => 'string|min:8|confirmed']);
+            $validator = Validator::make($request->all(), [
+                'password' => 'required|string|min:8|confirmed',
+            ]);
+            
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
             $updateData['password'] = Hash::make($request->password);
         }
 
