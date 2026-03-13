@@ -5,6 +5,12 @@
 @section('page-title', 'Add User')
 @section('page-description', 'Create a new user account')
 
+@push('styles')
+<style>
+    .cursor-pointer { cursor: pointer; }
+</style>
+@endpush
+
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
 <li class="breadcrumb-item"><a href="{{ route('users.index') }}">Users</a></li>
@@ -28,13 +34,33 @@
                         <input class="form-control" type="email" name="email" value="{{ old('email') }}" required>
                     </div>
                     <div class="form-group">
-                        <label class="control-label">Password <span class="text-danger">*</span></label>
-                        <input class="form-control" type="password" name="password" required>
-                        <small class="form-text text-muted">Minimum 8 characters</small>
+                        <label class="control-label">Phone Number <span class="text-danger">*</span></label>
+                        <input class="form-control" type="text" name="phone" value="{{ old('phone') }}" placeholder="e.g. 255700000000" required>
                     </div>
-                    <div class="form-group">
-                        <label class="control-label">Confirm Password <span class="text-danger">*</span></label>
-                        <input class="form-control" type="password" name="password_confirmation" required>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label class="control-label">Password <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input class="form-control" type="password" name="password" id="password" required>
+                                <div class="input-group-append">
+                                    <span class="input-group-text cursor-pointer toggle-password" data-target="#password">
+                                        <i class="fa fa-eye"></i>
+                                    </span>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">Minimum 8 characters</small>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label class="control-label">Confirm Password <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input class="form-control" type="password" name="password_confirmation" id="password_confirmation" required>
+                                <div class="input-group-append">
+                                    <span class="input-group-text cursor-pointer toggle-password" data-target="#password_confirmation">
+                                        <i class="fa fa-eye"></i>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label class="control-label">Role <span class="text-danger">*</span></label>
@@ -64,7 +90,23 @@
 </div>
 @endsection
 
-
-
+@push('scripts')
+<script>
+    $(document).ready(function() {
+        $('.toggle-password').click(function() {
+            let target = $($(this).data('target'));
+            let icon = $(this).find('i');
+            
+            if (target.attr('type') === 'password') {
+                target.attr('type', 'text');
+                icon.removeClass('fa-eye').addClass('fa-eye-slash');
+            } else {
+                target.attr('type', 'password');
+                icon.removeClass('fa-eye-slash').addClass('fa-eye');
+            }
+        });
+    });
+</script>
+@endpush
 
 
