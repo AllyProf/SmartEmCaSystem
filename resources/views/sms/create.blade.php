@@ -264,10 +264,10 @@
             
             if (!isValid) {
                 e.preventDefault();
-                swal({
+                Swal.fire({
                     title: "Validation Error",
                     text: errorMessage,
-                    type: "error",
+                    icon: "error",
                     confirmButtonText: "OK"
                 });
                 return false;
@@ -278,15 +278,15 @@
                 var count = $('#selected_customers').val().length;
                 if (count > 5) {
                     e.preventDefault();
-                    swal({
+                    Swal.fire({
                         title: "Confirm Bulk Send",
                         text: "You are about to send SMS to " + count + " customers. Continue?",
-                        type: "warning",
+                        icon: "warning",
                         showCancelButton: true,
                         confirmButtonText: "Yes, Send",
                         cancelButtonText: "Cancel"
-                    }, function(isConfirm) {
-                        if (isConfirm) {
+                    }).then(function(result) {
+                        if (result.isConfirmed) {
                             $('#smsForm').off('submit').submit();
                         }
                     });
@@ -296,15 +296,15 @@
                 var totalCustomers = {{ $customers->count() }};
                 if (totalCustomers > 5) {
                     e.preventDefault();
-                    swal({
+                    Swal.fire({
                         title: "Confirm Bulk Send",
                         text: "You are about to send SMS to ALL " + totalCustomers + " customers. Continue?",
-                        type: "warning",
+                        icon: "warning",
                         showCancelButton: true,
                         confirmButtonText: "Yes, Send to All",
                         cancelButtonText: "Cancel"
-                    }, function(isConfirm) {
-                        if (isConfirm) {
+                    }).then(function(result) {
+                        if (result.isConfirmed) {
                             $('#smsForm').off('submit').submit();
                         }
                     });
