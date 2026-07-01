@@ -15,6 +15,7 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Staff GPS Sign (attendance at HQ)
 Route::middleware(['staff.sign.nocache'])->group(function () {
     Route::get('/staff/sign', [App\Http\Controllers\StaffSignController::class, 'show'])->name('staff.sign');
+    Route::get('/staff/sign/device-binding', [App\Http\Controllers\StaffSignController::class, 'deviceBinding'])->name('staff.sign.device-binding');
     Route::post('/staff/sign/auth', [App\Http\Controllers\StaffSignController::class, 'authenticate'])->name('staff.sign.auth');
     Route::post('/staff/sign/logout', [App\Http\Controllers\StaffSignController::class, 'logout'])->name('staff.sign.logout');
     Route::middleware(['auth', 'staff.sign.verified', 'staff.sign.session'])->group(function () {

@@ -27,6 +27,17 @@ class StaffDeviceService
         $column = $this->columnForPlatform($platform);
         $stored = $user->{$column};
 
+        $otherUser = User::query()
+            ->where($column, $deviceId)
+            ->whereKeyNot($user->id)
+            ->first();
+
+        if ($otherUser) {
+            return $platform === self::PLATFORM_WEB
+                ? 'This browser is already registered to ' . $this->maskEmail($otherUser->email) . '. Contact admin to reset the device.'
+                : 'This device is already registered to ' . $this->maskEmail($otherUser->email) . '. Contact admin to reset the device.';
+        }
+
         if (!empty($stored) && $stored !== $deviceId) {
             return $platform === self::PLATFORM_WEB
                 ? 'This account is locked to another browser. Contact admin to reset your web device.'
@@ -49,6 +60,32 @@ class StaffDeviceService
             $user->web_device_id = null;
         }
         $user->save();
+    }
+
+    public function findUserByDevice(?string $deviceId, string $platform = self::PLATFORM_MOBILE): ?User
+    {
+        if (empty($deviceId)) {
+            return null;
+        }
+
+        $column = $this->columnForPlatform($platform);
+
+        return User::query()->where($column, $deviceId)->first();
+    }
+
+    public function maskEmail(string $email): string
+    {
+        $email = strtolower(trim($email));
+
+        if (!str_contains($email, '@')) {
+            return $email;
+        }
+
+        [$local, $domain] = explode('@', $email, 2);
+        $visible = substr($local, 0, 1);
+        $maskedLocal = $visible . str_repeat('*', max(1, strlen($local) - 1));
+
+        return "{$maskedLocal}@{$domain}";
     }
 
     /**

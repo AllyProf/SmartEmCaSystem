@@ -44,6 +44,7 @@ class StaffSignController extends Controller
             'isSignedIn' => (bool) $attendance,
             'lastSignIn' => $attendance?->signed_in_at,
             'staffSignActive' => $staffSignActive,
+            'isMobileStaffSign' => $this->devices->isMobileUserAgent(request()->userAgent()),
         ]);
     }
 
@@ -96,7 +97,30 @@ class StaffSignController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('staff.sign')->with('success', 'Logged out. Enter your staff email to sign in again.');
+        return redirect()->route('staff.sign')->with('success', 'Logged out. This device stays locked to your staff email.');
+    }
+
+    public function deviceBinding(Request $request)
+    {
+        $deviceId = trim((string) $request->query('device_id', ''));
+
+        if ($deviceId === '') {
+            return response()->json(['bound' => false]);
+        }
+
+        $platform = $this->devices->resolveStaffSignPlatform($request);
+        $owner = $this->devices->findUserByDevice($deviceId, $platform);
+
+        if (!$owner) {
+            return response()->json(['bound' => false]);
+        }
+
+        return response()->json([
+            'bound' => true,
+            'email' => strtolower($owner->email),
+            'masked_email' => $this->devices->maskEmail($owner->email),
+            'name' => $owner->name,
+        ]);
     }
 
     private function userHasSignPin(int $userId): bool

@@ -407,6 +407,44 @@
             color: #0f5132;
             border: 1px solid #badbcc;
         }
+        .auth-alert-info {
+            background: #e8f4fd;
+            color: #084298;
+            border: 1px solid #b6d4fe;
+        }
+        .staff-device-danger {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            background: linear-gradient(135deg, #fff5f5 0%, #fdecea 100%);
+            border: 2px solid #dc3545;
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            color: #842029;
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+        .sign-panel-guest .staff-device-danger {
+            margin-bottom: 12px;
+            font-size: 0.78rem;
+        }
+        .staff-device-danger .fa {
+            color: #dc3545;
+            font-size: 1.2rem;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }
+        .staff-device-danger strong {
+            display: block;
+            font-size: 0.88rem;
+            margin-bottom: 4px;
+            color: #940000;
+        }
+        .staff-device-danger--locked {
+            border-color: #940000;
+            background: linear-gradient(135deg, #fff0f0 0%, #ffe5e5 100%);
+        }
         .auth-field {
             margin-bottom: 16px;
         }
@@ -754,9 +792,24 @@
                 </div>
             @endif
 
+            <div class="staff-device-danger" id="devicePolicyWarning">
+                <i class="fa fa-exclamation-triangle"></i>
+                <div>
+                    <strong>Device lock warning</strong>
+                    After you continue, this phone or browser will be <strong>permanently linked</strong> to your staff email. You cannot sign in with another email on this device unless an admin resets it.
+                </div>
+            </div>
+
             <form action="{{ route('staff.sign.auth') }}" method="POST" class="auth-form" id="staffAuthForm">
                 @csrf
                 <input type="hidden" name="device_id" id="deviceIdField" value="">
+                <div class="staff-device-danger staff-device-danger--locked" id="deviceLockNotice" style="display:none;">
+                    <i class="fa fa-lock"></i>
+                    <div>
+                        <strong>Device locked</strong>
+                        <span id="deviceLockNoticeText">This device is locked to a staff email. Another account cannot be used here.</span>
+                    </div>
+                </div>
                 <div class="auth-field">
                     <label for="staffEmail">Staff email</label>
                     <div class="auth-input-wrap">
@@ -772,7 +825,7 @@
                 </div>
             </form>
             <div class="auth-divider"></div>
-            <p class="device-note"><i class="fa fa-mobile"></i> One phone and one browser per account. This browser will be linked on first sign.</p>
+            <p class="device-note"><i class="fa fa-exclamation-circle" style="color:#dc3545;"></i> Do not use a shared phone for staff sign unless it belongs to you only.</p>
         @else
             @if(session('error'))
                 <div class="alert alert-danger py-2 mb-2">{{ session('error') }}</div>
@@ -780,6 +833,15 @@
             @if(session('success'))
                 <div class="alert alert-success py-2 mb-2">{{ session('success') }}</div>
             @endif
+
+            <div class="staff-device-danger staff-device-danger--locked mb-2">
+                <i class="fa fa-exclamation-triangle"></i>
+                <div>
+                    <strong>Device locked to {{ Auth::user()->email }}</strong>
+                    This {{ ($isMobileStaffSign ?? false) ? 'phone' : 'browser' }} is registered to your account only. Another staff member cannot use it. Contact admin if you need a reset.
+                </div>
+            </div>
+
             <div class="non-working-banner" id="nonWorkingBanner"></div>
             <h4 class="mb-1 font-weight-bold" style="color:#940000;">
                 {{ $isSignedIn ? 'Signed In' : 'Ready to Sign In' }}
@@ -840,9 +902,66 @@
         const authForm = document.getElementById('staffAuthForm');
         const authBtn = document.getElementById('staffAuthContinueBtn');
         const authEmail = document.getElementById('staffEmail');
+        const deviceLockNotice = document.getElementById('deviceLockNotice');
+        const deviceLockNoticeText = document.getElementById('deviceLockNoticeText');
+        const devicePolicyWarning = document.getElementById('devicePolicyWarning');
+        let deviceIsBound = false;
+
+        async function applyDeviceEmailLock() {
+            if (!authEmail || !window.deviceId) return;
+
+            try {
+                const url = @json(route('staff.sign.device-binding')) + '?device_id=' + encodeURIComponent(window.deviceId);
+                const res = await fetch(url, {
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                });
+                if (!res.ok) return;
+
+                const data = await res.json();
+                if (!data.bound || !data.email) return;
+
+                deviceIsBound = true;
+                authEmail.value = data.email;
+                authEmail.readOnly = true;
+
+                if (devicePolicyWarning) devicePolicyWarning.style.display = 'none';
+
+                if (deviceLockNotice && deviceLockNoticeText) {
+                    const label = data.masked_email || data.email;
+                    deviceLockNoticeText.innerHTML = 'This device is locked to <strong>' + label + '</strong>. You must use this email. Another staff account cannot sign in here.';
+                    deviceLockNotice.style.display = 'flex';
+                }
+            } catch (e) {}
+        }
+
         if (authForm && authBtn) {
-            authForm.addEventListener('submit', function () {
+            applyDeviceEmailLock();
+            authForm.addEventListener('submit', async function (e) {
                 if (deviceField) deviceField.value = window.deviceId || deviceField.value;
+
+                if (!deviceIsBound && authForm.dataset.deviceWarningConfirmed !== '1') {
+                    e.preventDefault();
+                    const result = await Swal.fire({
+                        icon: 'warning',
+                        title: 'Device will be locked',
+                        html: '<p style="text-align:left;margin:0;line-height:1.5;">This <strong>phone or browser</strong> will be permanently linked to the email you enter.</p><p style="text-align:left;margin:12px 0 0;line-height:1.5;color:#842029;"><strong>Warning:</strong> You cannot use another staff email on this device later. Only an admin can reset the lock.</p>',
+                        confirmButtonColor: '#940000',
+                        confirmButtonText: 'I understand, continue',
+                        showCancelButton: true,
+                        cancelButtonText: 'Cancel',
+                    });
+
+                    if (!result.isConfirmed) return;
+
+                    authForm.dataset.deviceWarningConfirmed = '1';
+                    authBtn.classList.add('is-loading');
+                    authBtn.disabled = true;
+                    if (authEmail) authEmail.readOnly = true;
+                    authForm.submit();
+                    return;
+                }
+
                 authBtn.classList.add('is-loading');
                 authBtn.disabled = true;
                 if (authEmail) authEmail.readOnly = true;
