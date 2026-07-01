@@ -215,6 +215,15 @@
         }
         .map-fab:active { transform: scale(0.95); }
         .map-fab.recenter { bottom: calc(220px + env(safe-area-inset-bottom)); }
+        body.sign-mode-guest .map-fab.recenter { bottom: calc(42vh + env(safe-area-inset-bottom)); }
+        body.sign-mode-guest .map-style-bar { bottom: calc(42vh + 12px + env(safe-area-inset-bottom)); }
+        .guest-location-badge { margin-bottom: 8px; font-size: 0.82rem; }
+        .guest-where-line {
+            font-size: 0.78rem;
+            color: #555;
+            margin: 0 0 10px;
+            line-height: 1.35;
+        }
         .gps-live {
             position: fixed;
             top: 58px;
@@ -222,7 +231,7 @@
             z-index: 1000;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             background: rgba(255,255,255,0.95);
             padding: 6px 12px;
             border-radius: 20px;
@@ -236,12 +245,126 @@
             height: 8px;
             background: #28a745;
             border-radius: 50%;
+            flex-shrink: 0;
             animation: liveBlink 1.2s infinite;
         }
+        .gps-chip-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(148, 0, 0, 0.2);
+            border-top-color: #940000;
+            border-radius: 50%;
+            flex-shrink: 0;
+            animation: gpsChipSpin 0.75s linear infinite;
+        }
+        @keyframes gpsChipSpin {
+            to { transform: rotate(360deg); }
+        }
         .gps-live.searching { color: #856404; }
-        .gps-live.searching .live-dot { background: #ffc107; animation: none; }
+        .gps-live.searching .live-dot { display: none; }
         .gps-live.error { color: #721c24; }
         .gps-live.error .live-dot { background: #dc3545; animation: none; }
+        body.gps-locating #signMap,
+        body.gps-locating .sign-topbar,
+        body.gps-locating .sign-panel,
+        body.gps-locating .hq-chip,
+        body.gps-locating .gps-live,
+        body.gps-locating .map-style-bar,
+        body.gps-locating .map-fab {
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .gps-map-loader {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #1a1a1a;
+            background-image: linear-gradient(rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.32)),
+                url('{{ asset('images/confirmation_background_image.jpg') }}');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            transition: opacity 0.45s ease, visibility 0.45s ease;
+        }
+        .gps-map-loader.is-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        .gps-map-loader-card {
+            text-align: center;
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            max-width: none;
+            width: auto;
+        }
+        .gps-locator-radar {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 14px;
+        }
+        .gps-radar-grid {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background:
+                repeating-linear-gradient(0deg, transparent, transparent 18px, rgba(0, 123, 255, 0.08) 18px, rgba(0, 123, 255, 0.08) 19px),
+                repeating-linear-gradient(90deg, transparent, transparent 18px, rgba(0, 123, 255, 0.08) 18px, rgba(0, 123, 255, 0.08) 19px);
+            border: 1px solid rgba(0, 123, 255, 0.15);
+        }
+        .gps-radar-ring {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 24px;
+            height: 24px;
+            margin: -12px 0 0 -12px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 123, 255, 0.55);
+            animation: gpsRadarPulse 2.2s ease-out infinite;
+            opacity: 0;
+        }
+        .gps-radar-ring.r2 { animation-delay: 0.7s; }
+        .gps-radar-ring.r3 { animation-delay: 1.4s; }
+        @keyframes gpsRadarPulse {
+            0% { transform: scale(0.4); opacity: 0.85; }
+            100% { transform: scale(3.8); opacity: 0; }
+        }
+        .gps-locator-orbit {
+            position: absolute;
+            inset: 4px;
+            border-radius: 50%;
+            border: 2px dashed rgba(148, 0, 0, 0.45);
+            animation: gpsOrbitSpin 2.5s linear infinite;
+        }
+        @keyframes gpsOrbitSpin {
+            to { transform: rotate(360deg); }
+        }
+        .gps-locator-pin {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -58%);
+            font-size: 2rem;
+            color: #940000;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
+            z-index: 2;
+            animation: gpsPinBob 1.2s ease-in-out infinite;
+        }
+        @keyframes gpsPinBob {
+            0%, 100% { transform: translate(-50%, -58%); }
+            50% { transform: translate(-50%, -66%); }
+        }
+        .gps-loader-title,
+        .gps-loader-hint {
+            display: none;
+        }
         @keyframes liveBlink {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.4; transform: scale(0.85); }
@@ -775,8 +898,23 @@
         }
     </style>
 </head>
-<body>
+<body class="sign-mode-{{ $staffSignActive ? 'auth' : 'guest' }} gps-locating">
     <div id="signMap"></div>
+
+    <div class="gps-map-loader" id="gpsMapLoader" role="status" aria-live="polite">
+        <div class="gps-map-loader-card">
+            <div class="gps-locator-radar" aria-hidden="true">
+                <div class="gps-radar-grid"></div>
+                <span class="gps-radar-ring r1"></span>
+                <span class="gps-radar-ring r2"></span>
+                <span class="gps-radar-ring r3"></span>
+                <span class="gps-locator-orbit"></span>
+                <span class="gps-locator-pin"><i class="fa fa-map-marker"></i></span>
+            </div>
+            <p class="gps-loader-title">Finding your location</p>
+            <p class="gps-loader-hint" id="gpsLoaderHint">Scanning map · allow GPS when asked</p>
+        </div>
+    </div>
 
     <div class="sign-topbar">
         @if($staffSignActive)
@@ -793,16 +931,18 @@
         @endif
     </div>
 
-    @if($staffSignActive)
-    <div class="hq-chip"><i class="fa fa-building"></i> HQ Zone &middot; {{ $mapConfig['geofence_radius'] }}m radius</div>
-    <div class="gps-live searching" id="gpsLive"><span class="live-dot"></span> <span id="gpsLiveText">GPS...</span></div>
+    <div class="hq-chip"><i class="fa fa-building"></i> {{ $mapConfig['hq_name'] ?? 'EmCa HQ' }} &middot; {{ $mapConfig['geofence_radius'] }}m zone</div>
+    <div class="gps-live searching" id="gpsLive">
+        <span class="live-dot"></span>
+        <span class="gps-chip-spinner" id="gpsChipSpinner"></span>
+        <span id="gpsLiveText">Finding GPS...</span>
+    </div>
     <div class="map-style-bar">
         <button type="button" class="map-style-btn active" data-map-style="voyager">Map</button>
         <button type="button" class="map-style-btn" data-map-style="dark">Night</button>
         <button type="button" class="map-style-btn" data-map-style="satellite">Satellite</button>
     </div>
     <button type="button" class="map-fab recenter" id="recenterBtn" title="Center on me"><i class="fa fa-crosshairs"></i></button>
-    @endif
 
     <div class="sign-panel{{ !$staffSignActive ? ' sign-panel-guest' : '' }}" id="signPanel">
         <div class="sign-panel-handle d-md-none" id="panelHandle"></div>
@@ -812,7 +952,7 @@
                 <div class="auth-header-icon"><i class="fa fa-id-badge"></i></div>
                 <div class="auth-header-text">
                     <h4>Staff Attendance</h4>
-                    <p>Enter your staff email. Sign in/out only at HQ.</p>
+                    <p>Enter your staff email. Sign in/out only at {{ $mapConfig['hq_name'] ?? 'EmCa HQ' }}.</p>
                 </div>
             </div>
 
@@ -828,6 +968,12 @@
                     <span>{{ session('success') }}</span>
                 </div>
             @endif
+
+            <div class="distance-badge tracking guest-location-badge" id="guestDistanceBadge">
+                <i class="fa fa-location-arrow"></i>
+                <span id="guestDistanceText">Locating you on map...</span>
+            </div>
+            <p class="guest-where-line" id="guestWhereLine">Allow location to see your live position and distance to {{ $mapConfig['hq_name'] ?? 'EmCa HQ' }}.</p>
 
             <p class="device-lock-chip device-lock-chip--warn" id="devicePolicyWarning">
                 <i class="fa fa-exclamation-triangle"></i>
@@ -874,9 +1020,9 @@
             </h4>
             <p class="status-line" id="statusText">
                 @if($isSignedIn && $lastSignIn)
-                    Signed in at {{ $lastSignIn->format('h:i A') }}. Move to HQ boundary to sign out.
+                    Signed in at {{ $lastSignIn->format('h:i A') }}. Move to {{ $mapConfig['hq_name'] ?? 'EmCa HQ' }} boundary to sign out.
                 @else
-                    Enable location and go to HQ to sign in.
+                    Enable location and go to {{ $mapConfig['hq_name'] ?? 'EmCa HQ' }} to sign in.
                 @endif
             </p>
 
@@ -1003,23 +1149,14 @@
                 caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k))));
             }
         }
-        const mapConfig = @json($mapConfig);
-        const map = L.map('signMap', { zoomControl: false }).setView([mapConfig.hq_latitude, mapConfig.hq_longitude], 16);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-        L.control.zoom({ position: 'topright' }).addTo(map);
-        L.circle([mapConfig.hq_latitude, mapConfig.hq_longitude], {
-            color: '#940000', fillColor: '#940000', fillOpacity: 0.15, radius: mapConfig.geofence_radius
-        }).addTo(map);
-        L.marker([mapConfig.hq_latitude, mapConfig.hq_longitude]).addTo(map).bindPopup('EmCa HQ');
     </script>
     @endif
 
-    @if($staffSignActive)
     <script>
         window.STAFF_SIGN_CONFIG = {
             authenticated: @json($staffSignActive),
             mapConfig: @json($mapConfig),
-            isSignedIn: @json($isSignedIn),
+            isSignedIn: @json($staffSignActive ? $isSignedIn : false),
             csrfToken: document.querySelector('meta[name="csrf-token"]').content,
             routes: {
                 signIn: @json(route('staff.sign.in')),
@@ -1030,6 +1167,5 @@
         };
     </script>
     <script src="{{ asset('js/staff-sign.js') }}?v={{ filemtime(public_path('js/staff-sign.js')) }}"></script>
-    @endif
 </body>
 </html>

@@ -16,11 +16,11 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::middleware(['staff.sign.nocache'])->group(function () {
     Route::get('/staff/sign', [App\Http\Controllers\StaffSignController::class, 'show'])->name('staff.sign');
     Route::get('/staff/sign/device-binding', [App\Http\Controllers\StaffSignController::class, 'deviceBinding'])->name('staff.sign.device-binding');
+    Route::get('/staff/sign/reverse-geocode', [App\Http\Controllers\StaffSignController::class, 'reverseGeocode'])->name('staff.sign.reverse-geocode');
     Route::post('/staff/sign/auth', [App\Http\Controllers\StaffSignController::class, 'authenticate'])->name('staff.sign.auth');
     Route::post('/staff/sign/logout', [App\Http\Controllers\StaffSignController::class, 'logout'])->name('staff.sign.logout');
     Route::middleware(['auth', 'staff.sign.verified', 'staff.sign.session'])->group(function () {
         Route::get('/staff/sign/status', [App\Http\Controllers\StaffSignController::class, 'status'])->name('staff.sign.status');
-        Route::get('/staff/sign/reverse-geocode', [App\Http\Controllers\StaffSignController::class, 'reverseGeocode'])->name('staff.sign.reverse-geocode');
         Route::get('/staff/sign/history', [App\Http\Controllers\StaffSignController::class, 'history'])->name('staff.sign.history');
         Route::get('/staff/sign/replay/{attendance}', [App\Http\Controllers\StaffSignController::class, 'replay'])->name('staff.sign.replay');
         Route::post('/staff/sign/in', [App\Http\Controllers\StaffSignController::class, 'signIn'])->name('staff.sign.in');

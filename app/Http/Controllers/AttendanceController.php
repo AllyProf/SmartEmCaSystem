@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Setting;
 use App\Models\StaffAttendance;
 use App\Models\User;
+use App\Services\AttendanceGeofenceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -76,22 +77,35 @@ class AttendanceController extends Controller
         $weeklyEarlyArrivals = $this->getWeeklyStats('early', $expectedInTime);
 
         $attendanceSettings = app(\App\Services\AttendanceSettingService::class);
+        $geofence = app(AttendanceGeofenceService::class);
 
         $mapPins = collect($filteredResults)
             ->filter(fn ($att) => $att->latitude_in && $att->longitude_in)
-            ->map(fn ($att) => [
-                'id' => $att->id,
-                'name' => $att->user->name,
-                'lat' => (float) $att->latitude_in,
-                'lng' => (float) $att->longitude_in,
-                'lat_out' => $att->latitude_out ? (float) $att->latitude_out : null,
-                'lng_out' => $att->longitude_out ? (float) $att->longitude_out : null,
-                'signed_in' => Carbon::parse($att->signed_in_at)->format('h:i A'),
-                'signed_in_date' => Carbon::parse($att->signed_in_at)->format('d M Y'),
-                'is_late' => (bool) $att->is_late,
-                'inside_hq' => (bool) $att->location_verified_in,
-                'still_working' => !$att->signed_out_at,
-            ])
+            ->map(function ($att) use ($geofence) {
+                $lat = (float) $att->latitude_in;
+                $lng = (float) $att->longitude_in;
+
+                return [
+                    'id' => $att->id,
+                    'name' => $att->user->name,
+                    'staff_id' => $att->user->staff_id ?? '',
+                    'lat' => $lat,
+                    'lng' => $lng,
+                    'lat_out' => $att->latitude_out ? (float) $att->latitude_out : null,
+                    'lng_out' => $att->longitude_out ? (float) $att->longitude_out : null,
+                    'signed_in' => Carbon::parse($att->signed_in_at)->format('h:i A'),
+                    'signed_in_date' => Carbon::parse($att->signed_in_at)->format('d M Y'),
+                    'signed_out' => $att->signed_out_at
+                        ? Carbon::parse($att->signed_out_at)->format('h:i A')
+                        : null,
+                    'is_late' => (bool) $att->is_late,
+                    'inside_hq' => (bool) $att->location_verified_in,
+                    'still_working' => !$att->signed_out_at,
+                    'distance_m' => (int) round($geofence->distanceFromHq($lat, $lng)),
+                    'photo_url' => $att->photoInUrl(),
+                    'gps_flagged' => (bool) $att->gps_flagged_in,
+                ];
+            })
             ->values();
 
         $filterPeriodLabel = match ($filterType) {
@@ -114,6 +128,7 @@ class AttendanceController extends Controller
             'hqLatitude' => $attendanceSettings->hqLatitude(),
             'hqLongitude' => $attendanceSettings->hqLongitude(),
             'geofenceRadius' => $attendanceSettings->geofenceRadius(),
+            'hqName' => $attendanceSettings->hqName(),
             'signReminderTime' => substr($attendanceSettings->signReminderTime(), 0, 5),
             'sessionTimeout' => $attendanceSettings->sessionTimeoutMinutes(),
             'weekendDays' => implode(',', $attendanceSettings->weekendDays()),

@@ -28,6 +28,7 @@ class SystemSettingsController extends Controller
             'hqLatitude' => $this->settings->hqLatitude(),
             'hqLongitude' => $this->settings->hqLongitude(),
             'geofenceRadius' => $this->settings->geofenceRadius(),
+            'hqName' => $this->settings->hqName(),
             'signReminderTime' => substr($this->settings->signReminderTime(), 0, 5),
             'sessionTimeout' => $this->settings->sessionTimeoutMinutes(),
             'weekendDays' => implode(',', $this->settings->weekendDays()),
@@ -52,6 +53,7 @@ class SystemSettingsController extends Controller
             'expected_departure_time' => 'required|date_format:H:i',
             'hq_latitude' => 'required|numeric',
             'hq_longitude' => 'required|numeric',
+            'hq_name' => 'required|string|max:80',
             'geofence_radius' => 'required|numeric|min:10|max:500',
             'sign_reminder_time' => 'required|date_format:H:i',
             'sign_session_timeout_minutes' => 'required|integer|min:5|max:240',
@@ -70,6 +72,7 @@ class SystemSettingsController extends Controller
         $this->settings->set('expected_departure_time', $request->expected_departure_time . ':00');
         $this->settings->set('hq_latitude', $request->hq_latitude);
         $this->settings->set('hq_longitude', $request->hq_longitude);
+        $this->settings->set('hq_name', trim($request->hq_name));
         $this->settings->set('geofence_radius', $request->geofence_radius);
         $this->settings->set('sign_reminder_time', $request->sign_reminder_time . ':00');
         $this->settings->set('sign_session_timeout_minutes', $request->sign_session_timeout_minutes);

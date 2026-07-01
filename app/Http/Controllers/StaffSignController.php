@@ -270,8 +270,10 @@ class StaffSignController extends Controller
         $longitude = (float) $request->longitude;
         $placeName = $geocoder->resolve($latitude, $longitude);
 
+        $hqName = $this->settings->hqName();
+
         if ($this->geofence->isWithinHq($latitude, $longitude)) {
-            $placeName = $placeName ? "EmCa HQ · {$placeName}" : 'EmCa HQ';
+            $placeName = $placeName ? "{$hqName} · {$placeName}" : $hqName;
         }
 
         return response()->json([
@@ -317,10 +319,12 @@ class StaffSignController extends Controller
         $longitude = (float) $request->longitude;
         $distance = $this->geofence->distanceFromHq($latitude, $longitude);
 
+        $hqName = $this->settings->hqName();
+
         if (!$this->geofence->isWithinHq($latitude, $longitude)) {
             return response()->json([
                 'success' => false,
-                'message' => 'You must be at HQ to sign in. You are ' . round($distance, 1) . 'm away.',
+                'message' => "You must be at {$hqName} to sign in. You are " . round($distance, 1) . 'm away.',
                 'distance' => round($distance, 1),
                 'allowed_radius' => $this->geofence->radiusMeters(),
             ], 403);
@@ -357,8 +361,8 @@ class StaffSignController extends Controller
         return response()->json([
             'success' => true,
             'message' => $gpsAnalysis['flagged']
-                ? 'Signed in at HQ. Location flagged for review.'
-                : 'Signed in successfully at HQ.',
+                ? "Signed in at {$hqName}. Location flagged for review."
+                : "Signed in successfully at {$hqName}.",
             'distance' => round($distance, 1),
             'is_late' => $attendance->is_late,
             'gps_flagged' => $gpsAnalysis['flagged'],
@@ -399,10 +403,12 @@ class StaffSignController extends Controller
         $longitude = (float) $request->longitude;
         $distance = $this->geofence->distanceFromHq($latitude, $longitude);
 
+        $hqName = $this->settings->hqName();
+
         if (!$this->geofence->isWithinHq($latitude, $longitude)) {
             return response()->json([
                 'success' => false,
-                'message' => 'You must be at HQ to sign out. You are ' . round($distance, 1) . 'm away.',
+                'message' => "You must be at {$hqName} to sign out. You are " . round($distance, 1) . 'm away.',
                 'distance' => round($distance, 1),
                 'allowed_radius' => $this->geofence->radiusMeters(),
             ], 403);

@@ -34,6 +34,13 @@ class AttendanceSettingService
         return (float) ($this->get('geofence_radius') ?? config('attendance.geofence_radius'));
     }
 
+    public function hqName(): string
+    {
+        $name = trim((string) ($this->get('hq_name') ?? config('attendance.hq_name', 'EmCa HQ')));
+
+        return $name !== '' ? $name : 'EmCa HQ';
+    }
+
     public function expectedArrivalTime(): string
     {
         return $this->get('expected_arrival_time', '08:00:00');
@@ -180,6 +187,7 @@ class AttendanceSettingService
             'hq_latitude' => $this->hqLatitude(),
             'hq_longitude' => $this->hqLongitude(),
             'geofence_radius' => $this->geofenceRadius(),
+            'hq_name' => $this->hqName(),
             'expected_arrival' => substr($this->expectedArrivalTime(), 0, 5),
             'expected_departure' => substr($this->expectedDepartureTime(), 0, 5),
             'session_timeout_minutes' => $this->sessionTimeoutMinutes(),

@@ -2,10 +2,12 @@
     'use strict';
 
     const cfg = window.STAFF_SIGN_CONFIG || {};
-    if (!cfg.authenticated) return;
+    if (!cfg.mapConfig) return;
 
+    const isAuthenticated = !!cfg.authenticated;
     const mapConfig = cfg.mapConfig;
-    const isSignedIn = cfg.isSignedIn;
+    const hqName = mapConfig.hq_name || 'EmCa HQ';
+    let isSignedIn = isAuthenticated && cfg.isSignedIn;
     const csrfToken = cfg.csrfToken;
     const routes = cfg.routes;
 
@@ -17,9 +19,23 @@
     let lastPosTime = null, lastPosLat = null, lastPosLng = null;
     let mapStyle = 'voyager';
     let panelExpanded = true;
+    let currentPlaceName = null;
+    let lastGeocodeAt = 0;
+    let hasFittedBounds = false;
+    let gpsReady = false;
     const MAX_PATH = 40;
     const WALK_SPEED = 0.35;
     const OFFLINE_KEY = 'smartemca_offline_sign_queue';
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
+    function hqMarkerLabelHtml() {
+        return `<div style="background:#940000;color:#fff;padding:6px 10px;border-radius:8px;font-weight:bold;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.3);white-space:nowrap;">${escapeHtml(hqName)}</div>`;
+    }
 
     const TILES = {
         voyager: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
@@ -135,8 +151,8 @@
         L.marker([mapConfig.hq_latitude, mapConfig.hq_longitude], {
             icon: L.divIcon({
                 className: '',
-                html: '<div style="background:#940000;color:#fff;padding:6px 10px;border-radius:8px;font-weight:bold;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.3);">HQ</div>',
-                iconAnchor: [24, 20],
+                html: hqMarkerLabelHtml(),
+                iconAnchor: [40, 20],
             }),
         }).addTo(map);
 
@@ -144,16 +160,17 @@
             color: '#940000', fillColor: '#940000', fillOpacity: 0.12, weight: 2, radius: mapConfig.geofence_radius,
         }).addTo(map);
 
-        pathLine = L.polyline([], { color: '#007bff', weight: 4, opacity: 0.55 }).addTo(map);
+        pathLine = L.polyline([], { color: '#007bff', weight: 5, opacity: 0.7 }).addTo(map);
         routeLine = L.polyline([], { color: '#940000', weight: 2, opacity: 0.4, dashArray: '6 6' }).addTo(map);
         osrmLine = L.polyline([], { color: '#940000', weight: 4, opacity: 0.85 }).addTo(map);
 
         userMarker = L.marker([lat, lng], {
             icon: L.divIcon({ className: '', html: userMarkerHtml(null, false), iconSize: [48, 48], iconAnchor: [24, 24] }),
             zIndexOffset: 1000,
-        }).addTo(map);
+            opacity: gpsReady ? 1 : 0,
+        }).addTo(map).bindPopup(userMarkerPopupHtml());
 
-        accuracyCircle = L.circle([lat, lng], { color: '#007bff', fillColor: '#007bff', fillOpacity: 0.08, weight: 1, radius: 20 }).addTo(map);
+        accuracyCircle = L.circle([lat, lng], { color: '#007bff', fillColor: '#007bff', fillOpacity: 0.1, weight: 2, radius: 20 }).addTo(map);
         map.on('dragstart', () => { followUser = false; });
         startMarkerAnimation();
         fetchOsrmRoute(lat, lng);
@@ -179,31 +196,52 @@
     function updateGpsChip(state, text) {
         const chip = document.getElementById('gpsLive');
         const label = document.getElementById('gpsLiveText');
+        const spinner = document.getElementById('gpsChipSpinner');
+        const loader = document.getElementById('gpsMapLoader');
+        const loaderHint = document.getElementById('gpsLoaderHint');
+
         if (!chip || !label) return;
+
         chip.className = state === 'tracking' ? 'gps-live' : 'gps-live ' + state;
         label.textContent = text;
+
+        if (spinner) {
+            spinner.style.display = state === 'searching' ? 'block' : 'none';
+        }
+
+        if (loader) {
+            const showLoader = state === 'searching';
+            loader.classList.toggle('is-hidden', !showLoader);
+            loader.setAttribute('aria-hidden', showLoader ? 'false' : 'true');
+            document.body.classList.toggle('gps-locating', showLoader);
+        }
+
+        if (loaderHint && state === 'searching') {
+            loaderHint.textContent = 'Scanning map · allow GPS when asked';
+        }
     }
 
     function updateUI() {
-        const badge = document.getElementById('distanceBadge');
-        const distanceText = document.getElementById('distanceText');
+        const { badge, distanceText } = getDistanceElements();
         const etaText = document.getElementById('etaText');
         const signBtn = document.getElementById('signActionBtn');
 
         if (currentDistance === null) {
-            if (badge) badge.className = 'distance-badge tracking';
-            if (distanceText) distanceText.textContent = 'Locating...';
+            if (badge) badge.className = 'distance-badge tracking' + (badge.id === 'guestDistanceBadge' ? ' guest-location-badge' : '');
+            if (distanceText) distanceText.textContent = 'Locating you on map...';
             if (signBtn) signBtn.disabled = true;
             return;
         }
 
         isInside = currentDistance <= mapConfig.geofence_radius;
-        if (badge) badge.className = 'distance-badge ' + (isInside ? 'inside' : 'outside');
+        const badgeClass = 'distance-badge ' + (isInside ? 'inside' : 'outside') + (badge && badge.id === 'guestDistanceBadge' ? ' guest-location-badge' : '');
+        if (badge) badge.className = badgeClass;
 
         if (distanceText) {
+            const walkPrefix = isWalking ? 'Walking · ' : '';
             distanceText.textContent = isInside
-                ? `At HQ · ${currentDistance.toFixed(0)}m`
-                : `${currentDistance.toFixed(0)}m from HQ`;
+                ? `${walkPrefix}At ${hqName} · ${currentDistance.toFixed(0)}m`
+                : `${walkPrefix}${currentDistance.toFixed(0)}m from ${hqName}`;
         }
 
         if (etaText && !isInside) {
@@ -213,7 +251,7 @@
             etaText.style.display = 'none';
         }
 
-        if (signBtn) signBtn.disabled = !isInside;
+        if (signBtn) signBtn.disabled = !isAuthenticated || !isInside;
 
         if (hqCircle) {
             hqCircle.setStyle({
@@ -231,11 +269,13 @@
         if (!isInside && wasInside && isSignedIn) {
             Swal.fire({
                 toast: true, position: 'top', timer: 4000, showConfirmButton: false,
-                icon: 'warning', title: 'You left HQ while still signed in',
+                icon: 'warning', title: `You left ${hqName} while still signed in`,
             });
         }
 
         wasInside = isInside;
+        updateLocationHints();
+        refreshUserMarkerPopup();
     }
 
     function onPosition(pos) {
@@ -245,7 +285,14 @@
         if (pos.coords.heading !== null && !isNaN(pos.coords.heading)) currentHeading = pos.coords.heading;
 
         currentDistance = haversine(targetLat, targetLng, mapConfig.hq_latitude, mapConfig.hq_longitude);
-        if (!map) initMap(targetLat, targetLng);
+        if (!map) initMap(mapConfig.hq_latitude, mapConfig.hq_longitude);
+
+        if (!gpsReady) {
+            gpsReady = true;
+            displayLat = targetLat;
+            displayLng = targetLng;
+            if (userMarker) userMarker.setOpacity(1);
+        }
 
         if (accuracyCircle && currentAccuracy) accuracyCircle.setRadius(Math.min(currentAccuracy, 80));
 
@@ -267,13 +314,21 @@
         if (pathPoints.length % 5 === 0) fetchOsrmRoute(targetLat, targetLng);
 
         const acc = currentAccuracy ? ` · ±${Math.round(currentAccuracy)}m` : '';
-        updateGpsChip('tracking', `Live GPS${acc}`);
+        const walk = isWalking ? ` · ${formatSpeedLabel()}` : '';
+        updateGpsChip('tracking', `Live GPS${acc}${walk}`);
+
+        maybeRefreshPlaceName();
+        fitMapToUserAndHq();
     }
 
-    function onPositionError() {
-        updateGpsChip('error', 'GPS off');
-        const el = document.getElementById('distanceText');
-        if (el) el.textContent = 'Location denied';
+    function onPositionError(err) {
+        updateGpsChip('error', 'GPS off — allow location');
+        const { distanceText } = getDistanceElements();
+        if (distanceText) distanceText.textContent = 'Location denied — enable GPS';
+        const guestLine = document.getElementById('guestWhereLine');
+        if (guestLine) guestLine.textContent = 'Allow location permission in your browser to see your position on the map.';
+        const loaderHint = document.getElementById('gpsLoaderHint');
+        if (loaderHint) loaderHint.textContent = 'Location blocked — enable GPS in browser settings';
     }
 
     function formatPhotoTimestamp(date) {
@@ -327,14 +382,89 @@
     }
 
     function formatCoordsLabel(lat, lng) {
-        if (lat === null || lng === null) return 'GPS coordinates unavailable';
+        if (lat === null || lng === null) return '';
         return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+    }
+
+    function formatSpeedLabel() {
+        if (currentSpeed === null || isNaN(currentSpeed)) return '';
+        const kmh = currentSpeed * 3.6;
+        if (kmh < 1.5) return 'Standing still';
+        return `Walking · ${kmh.toFixed(1)} km/h`;
+    }
+
+    function userMarkerPopupHtml() {
+        if (targetLat === null) return '<strong>You are here</strong><br>Waiting for GPS...';
+        const walk = isWalking
+            ? '<br><span style="color:#007bff;font-weight:700;"><i class="fa fa-street-view"></i> Walking now</span>'
+            : '<br><span style="color:#666;">Standing / not moving</span>';
+        const place = currentPlaceName ? `<br>${currentPlaceName}` : '';
+        const dist = currentDistance !== null
+            ? (isInside ? `<br><strong style="color:#28a745;">Inside ${escapeHtml(hqName)} · ${Math.round(currentDistance)}m</strong>`
+                : `<br><strong style="color:#fd7e14;">${Math.round(currentDistance)}m from ${escapeHtml(hqName)}</strong>`)
+            : '';
+        return `<strong>You are here</strong>${walk}${place}<br><small>${formatCoordsLabel(targetLat, targetLng)}</small>${dist}`;
+    }
+
+    function refreshUserMarkerPopup() {
+        if (userMarker) userMarker.setPopupContent(userMarkerPopupHtml());
+    }
+
+    async function maybeRefreshPlaceName() {
+        if (!routes.reverseGeocode || targetLat === null || targetLng === null) return;
+        const now = Date.now();
+        if (now - lastGeocodeAt < 45000) return;
+        lastGeocodeAt = now;
+        const name = await resolvePlaceName(targetLat, targetLng);
+        if (name) {
+            currentPlaceName = name;
+            updateLocationHints();
+            refreshUserMarkerPopup();
+        }
+    }
+
+    function updateLocationHints() {
+        const guestLine = document.getElementById('guestWhereLine');
+        const statusText = document.getElementById('statusText');
+
+        if (targetLat === null || currentDistance === null) return;
+
+        if (guestLine) {
+            const distLabel = isInside
+                ? `inside ${hqName} (${Math.round(currentDistance)}m)`
+                : `${Math.round(currentDistance)}m from ${hqName}`;
+            guestLine.innerHTML = isWalking
+                ? `<i class="fa fa-street-view" style="color:#007bff;"></i> Walking — you are ${distLabel}`
+                : `<i class="fa fa-map-marker"></i> Your position on map — ${distLabel}`;
+        }
+        if (statusText && isAuthenticated && !isSignedIn) {
+            statusText.textContent = isInside
+                ? `You are at ${hqName}. You can sign in now.`
+                : (isWalking ? `Walking to ${hqName}… follow the route on the map.` : `Go to ${hqName} to sign in. Your location updates live on the map.`);
+        }
+    }
+
+    function getDistanceElements() {
+        const badge = document.getElementById('distanceBadge') || document.getElementById('guestDistanceBadge');
+        const distanceText = document.getElementById('distanceText') || document.getElementById('guestDistanceText');
+        return { badge, distanceText };
+    }
+
+    function fitMapToUserAndHq() {
+        if (!map || targetLat === null || hasFittedBounds) return;
+        hasFittedBounds = true;
+        const bounds = L.latLngBounds([
+            [targetLat, targetLng],
+            [mapConfig.hq_latitude, mapConfig.hq_longitude],
+        ]);
+        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 17 });
+        setTimeout(() => { followUser = true; }, 800);
     }
 
     function buildPhotoStampLines(placeName) {
         const stampTime = formatPhotoTimestamp(new Date());
-        const zoneLabel = isInside ? 'At HQ zone' : 'Outside HQ zone';
-        const distLabel = currentDistance != null ? `${Math.round(currentDistance)}m from HQ` : '';
+        const zoneLabel = isInside ? `At ${hqName} zone` : `Outside ${hqName} zone`;
+        const distLabel = currentDistance != null ? `${Math.round(currentDistance)}m from ${hqName}` : '';
         const accLabel = currentAccuracy != null ? `±${Math.round(currentAccuracy)}m GPS` : '';
         const coordLabel = formatCoordsLabel(targetLat, targetLng);
         const resolvedPlace = (placeName || '').trim();
@@ -622,11 +752,11 @@
     }
 
     async function performSign() {
-        if (targetLat === null) return;
+        if (!isAuthenticated || targetLat === null) return;
 
         const actionLabel = isSignedIn ? 'sign out' : 'sign in';
         const confirm = await Swal.fire({
-            title: isSignedIn ? 'Sign Out?' : 'Sign In at HQ?',
+            title: isSignedIn ? 'Sign Out?' : `Sign In at ${hqName}?`,
             text: `Confirm ${actionLabel} at your current location.`,
             icon: 'question', showCancelButton: true,
             confirmButtonColor: '#940000', confirmButtonText: 'Yes, ' + actionLabel,
@@ -728,7 +858,7 @@
 
     document.getElementById('signActionBtn')?.addEventListener('click', performSign);
 
-    if (mapConfig.is_non_working_day) {
+    if (isAuthenticated && mapConfig.is_non_working_day) {
         const banner = document.getElementById('nonWorkingBanner');
         if (banner) {
             banner.style.display = 'block';
@@ -737,9 +867,13 @@
     }
 
     if (navigator.geolocation) {
-        updateGpsChip('searching', 'Finding GPS...');
+        initMap(mapConfig.hq_latitude, mapConfig.hq_longitude);
+        updateGpsChip('searching', 'Finding location...');
         navigator.geolocation.getCurrentPosition(onPosition, onPositionError, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-        watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 2000, timeout: 25000 });
+        watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy: true, maximumAge: 1000, timeout: 25000 });
+    } else {
+        initMap(mapConfig.hq_latitude, mapConfig.hq_longitude);
+        onPositionError();
     }
 
     initDraggablePanel();

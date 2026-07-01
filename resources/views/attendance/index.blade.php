@@ -48,6 +48,72 @@
         display: inline-block;
         border: 1px solid rgba(0,0,0,.15);
     }
+    .attendance-map-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px 10px;
+    }
+    .attendance-map-toolbar .btn { font-size: 0.78rem; }
+    .attendance-at-hq-badge {
+        font-size: 0.78rem;
+        font-weight: 700;
+        color: #155724;
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        border-radius: 20px;
+        padding: 4px 12px;
+    }
+    .attendance-pin-wrap {
+        position: relative;
+        width: 18px;
+        height: 18px;
+    }
+    .attendance-pin-dot {
+        width: 14px;
+        height: 14px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgba(0,0,0,.35);
+        position: absolute;
+        left: 2px;
+        top: 2px;
+        z-index: 2;
+    }
+    .attendance-pin-pulse {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: rgba(40, 167, 69, 0.45);
+        animation: attendancePinPulse 1.8s ease-out infinite;
+        z-index: 1;
+    }
+    @keyframes attendancePinPulse {
+        0% { transform: scale(0.6); opacity: 0.9; }
+        100% { transform: scale(2.2); opacity: 0; }
+    }
+    .attendance-map-popup { min-width: 180px; max-width: 220px; }
+    .attendance-map-popup .popup-photo-thumb {
+        width: 100%;
+        max-height: 100px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin: 8px 0 6px;
+        border: 2px solid #eee;
+        cursor: pointer;
+    }
+    .attendance-map-popup .popup-badge {
+        display: inline-block;
+        font-size: 0.68rem;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin: 2px 2px 0 0;
+        color: #fff;
+    }
     .attendance-filters-form .form-control {
         min-width: 0;
     }
@@ -189,7 +255,15 @@
                     <p class="text-muted small mb-0">{{ $filterPeriodLabel }} · {{ $mapPins->count() }} location(s) on map</p>
                 </div>
                 <span class="badge badge-pill px-3 py-2" style="background:#940000;color:#fff;">
-                    <i class="fa fa-building"></i> {{ $geofenceRadius }}m HQ zone
+                    <i class="fa fa-building"></i> {{ $geofenceRadius }}m {{ $hqName }} zone
+                </span>
+            </div>
+            <div class="attendance-map-toolbar">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleHeatmapBtn">
+                    <i class="fa fa-fire"></i> Heatmap
+                </button>
+                <span class="attendance-at-hq-badge" id="atHqNowBadge">
+                    <i class="fa fa-users"></i> <span id="atHqNowCount">0</span> at {{ $hqName }} now
                 </span>
             </div>
             <div id="attendanceOverviewMap" class="attendance-overview-map"></div>
@@ -197,6 +271,7 @@
                 <span><i class="dot" style="background:#28a745;"></i> On time · inside HQ</span>
                 <span><i class="dot" style="background:#dc3545;"></i> Late · inside HQ</span>
                 <span><i class="dot" style="background:#fd7e14;"></i> Outside HQ</span>
+                <span><i class="dot" style="background:#28a745;box-shadow:0 0 0 3px rgba(40,167,69,.35);"></i> Pulsing = still at HQ</span>
                 <span><i class="dot" style="background:#940000;"></i> HQ center</span>
             </div>
         </div>
@@ -463,7 +538,14 @@
 
 @push('scripts')
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script>
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text || '';
+        return div.innerHTML;
+    }
+
     function updateClock() {
         const now = new Date();
         const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -484,23 +566,120 @@
     const hqLat = {{ $hqLatitude }};
     const hqLng = {{ $hqLongitude }};
     const hqRadius = {{ $geofenceRadius }};
+    const hqName = @json($hqName);
     const overviewPins = @json($mapPins);
     let attendanceLocationMap = null;
     let attendanceMarkersLayer = null;
     let attendanceOverviewMap = null;
+    let overviewHeatLayer = null;
+    let heatmapActive = false;
 
-    function attendancePinIcon(color) {
+    function attendancePinIcon(color, pulsing) {
+        const pulse = pulsing
+            ? '<div class="attendance-pin-pulse"></div>'
+            : '';
         return L.divIcon({
             className: '',
-            html: '<div style="width:14px;height:14px;background:' + color + ';border:2px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.35)"></div>',
-            iconSize: [14, 14],
-            iconAnchor: [7, 7],
+            html: '<div class="attendance-pin-wrap">' + pulse
+                + '<div class="attendance-pin-dot" style="background:' + color + '"></div></div>',
+            iconSize: [18, 18],
+            iconAnchor: [9, 9],
         });
     }
 
     function overviewPinColor(pin) {
         if (!pin.inside_hq) return '#fd7e14';
         return pin.is_late ? '#dc3545' : '#28a745';
+    }
+
+    function openOverviewPhoto(pin) {
+        if (!pin.photo_url) return;
+        $('#attendancePhotoModalTitle').text(pin.name + ' · ' + pin.signed_in_date + ' ' + pin.signed_in);
+        $('#attendancePhotoModalImage').attr('src', pin.photo_url);
+        $('#attendancePhotoModal').modal('show');
+    }
+
+    function buildOverviewPopup(pin) {
+        const color = overviewPinColor(pin);
+        let html = '<div class="attendance-map-popup">';
+        html += '<strong>' + escapeHtml(pin.name) + '</strong>';
+        if (pin.staff_id) {
+            html += '<div class="text-muted small">ID: ' + escapeHtml(pin.staff_id) + '</div>';
+        }
+        html += '<div class="mt-1">';
+        html += '<span class="popup-badge" style="background:' + color + ';">'
+            + (pin.inside_hq ? 'Inside ' + escapeHtml(hqName) : 'Outside ' + escapeHtml(hqName)) + '</span>';
+        if (pin.is_late) {
+            html += '<span class="popup-badge" style="background:#dc3545;">Late</span>';
+        } else if (pin.inside_hq) {
+            html += '<span class="popup-badge" style="background:#28a745;">On time</span>';
+        }
+        if (pin.still_working) {
+            html += '<span class="popup-badge" style="background:#007bff;">At ' + escapeHtml(hqName) + ' now</span>';
+        }
+        if (pin.gps_flagged) {
+            html += '<span class="popup-badge" style="background:#6f42c1;">GPS flagged</span>';
+        }
+        html += '</div>';
+        html += '<div class="small mt-1"><i class="fa fa-clock-o"></i> In: ' + escapeHtml(pin.signed_in_date)
+            + ' ' + escapeHtml(pin.signed_in) + '</div>';
+        if (pin.signed_out) {
+            html += '<div class="small"><i class="fa fa-sign-out"></i> Out: ' + escapeHtml(pin.signed_out) + '</div>';
+        }
+        html += '<div class="small text-muted">' + pin.distance_m + 'm from ' + escapeHtml(hqName) + ' center</div>';
+        if (pin.photo_url) {
+            html += '<img src="' + escapeHtml(pin.photo_url) + '" class="popup-photo-thumb overview-popup-photo" alt="Sign-in photo" data-pin-id="' + pin.id + '">';
+            html += '<button type="button" class="btn btn-sm btn-danger btn-block overview-popup-photo-btn" data-pin-id="' + pin.id + '">'
+                + '<i class="fa fa-camera"></i> View photo</button>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function updateAtHqNowCount() {
+        const count = overviewPins.filter(function (p) {
+            return p.still_working && p.inside_hq;
+        }).length;
+        $('#atHqNowCount').text(count);
+    }
+
+    function bindOverviewPopupEvents(pin, marker) {
+        marker.on('popupopen', function () {
+            const popupEl = marker.getPopup().getElement();
+            if (!popupEl) return;
+            popupEl.querySelectorAll('.overview-popup-photo, .overview-popup-photo-btn').forEach(function (el) {
+                el.addEventListener('click', function () {
+                    openOverviewPhoto(pin);
+                });
+            });
+        });
+    }
+
+    function toggleOverviewHeatmap() {
+        if (!attendanceOverviewMap || typeof L.heatLayer !== 'function') return;
+
+        if (heatmapActive && overviewHeatLayer) {
+            attendanceOverviewMap.removeLayer(overviewHeatLayer);
+            overviewHeatLayer = null;
+            heatmapActive = false;
+            $('#toggleHeatmapBtn').removeClass('btn-danger text-white').addClass('btn-outline-secondary');
+            return;
+        }
+
+        const points = overviewPins.map(function (pin) {
+            return [pin.lat, pin.lng, pin.still_working ? 1.0 : 0.65];
+        });
+
+        if (!points.length) return;
+
+        overviewHeatLayer = L.heatLayer(points, {
+            radius: 28,
+            blur: 22,
+            maxZoom: 18,
+            gradient: { 0.2: '#ffe08a', 0.5: '#fd7e14', 0.8: '#dc3545', 1.0: '#940000' },
+        }).addTo(attendanceOverviewMap);
+        heatmapActive = true;
+        $('#toggleHeatmapBtn').removeClass('btn-outline-secondary').addClass('btn-danger text-white');
     }
 
     function initAttendanceOverviewMap() {
@@ -515,27 +694,27 @@
             fillColor: '#940000',
             fillOpacity: 0.12,
             radius: hqRadius,
-        }).addTo(attendanceOverviewMap).bindPopup('EmCa HQ · ' + hqRadius + 'm zone');
+        }).addTo(attendanceOverviewMap).bindPopup(escapeHtml(hqName) + ' · ' + hqRadius + 'm zone');
 
         L.marker([hqLat, hqLng], {
-            icon: attendancePinIcon('#940000'),
-        }).addTo(attendanceOverviewMap).bindPopup('<strong>HQ Center</strong>');
+            icon: attendancePinIcon('#940000', false),
+        }).addTo(attendanceOverviewMap).bindPopup('<strong>' + escapeHtml(hqName) + ' center</strong>');
 
         const bounds = [[hqLat, hqLng]];
 
         overviewPins.forEach(function (pin) {
             const color = overviewPinColor(pin);
-            const popup = '<strong>' + pin.name + '</strong><br>Sign in: ' + pin.signed_in_date + ' ' + pin.signed_in
-                + (pin.still_working ? '<br><em>Still working</em>' : '');
-            L.marker([pin.lat, pin.lng], { icon: attendancePinIcon(color) })
+            const pulsing = pin.still_working && pin.inside_hq;
+            const marker = L.marker([pin.lat, pin.lng], { icon: attendancePinIcon(color, pulsing) })
                 .addTo(attendanceOverviewMap)
-                .bindPopup(popup);
+                .bindPopup(buildOverviewPopup(pin));
+            bindOverviewPopupEvents(pin, marker);
             bounds.push([pin.lat, pin.lng]);
 
             if (pin.lat_out && pin.lng_out && (pin.lat_out !== pin.lat || pin.lng_out !== pin.lng)) {
-                L.marker([pin.lat_out, pin.lng_out], { icon: attendancePinIcon('#333') })
+                L.marker([pin.lat_out, pin.lng_out], { icon: attendancePinIcon('#333', false) })
                     .addTo(attendanceOverviewMap)
-                    .bindPopup('<strong>' + pin.name + '</strong><br>Sign out location');
+                    .bindPopup('<strong>' + escapeHtml(pin.name) + '</strong><br>Sign out location');
                 bounds.push([pin.lat_out, pin.lng_out]);
             }
         });
@@ -544,11 +723,13 @@
             attendanceOverviewMap.fitBounds(L.latLngBounds(bounds), { padding: [32, 32], maxZoom: 18 });
         }
 
+        updateAtHqNowCount();
         setTimeout(function () { attendanceOverviewMap.invalidateSize(); }, 200);
     }
 
     $(document).ready(function () {
         initAttendanceOverviewMap();
+        $('#toggleHeatmapBtn').on('click', toggleOverviewHeatmap);
         $(window).on('resize', function () {
             if (attendanceOverviewMap) attendanceOverviewMap.invalidateSize();
         });
@@ -566,8 +747,8 @@
             fillColor: '#940000',
             fillOpacity: 0.12,
             radius: hqRadius,
-        }).addTo(attendanceLocationMap).bindPopup('EmCa HQ · ' + hqRadius + 'm zone');
-        L.marker([hqLat, hqLng]).addTo(attendanceLocationMap).bindPopup('HQ center');
+        }).addTo(attendanceLocationMap).bindPopup(escapeHtml(hqName) + ' · ' + hqRadius + 'm zone');
+        L.marker([hqLat, hqLng]).addTo(attendanceLocationMap).bindPopup(escapeHtml(hqName) + ' center');
         attendanceMarkersLayer = L.layerGroup().addTo(attendanceLocationMap);
     }
 
@@ -596,8 +777,8 @@
         let details = '<strong>Sign in:</strong> ' + $btn.data('signed-in') + '<br>';
         details += '<span class="text-muted">' + latIn.toFixed(6) + ', ' + lngIn.toFixed(6) + '</span>';
         details += $btn.data('verified-in') === 1
-            ? ' <span class="badge badge-success">Inside HQ</span>'
-            : ' <span class="badge badge-danger">Outside HQ</span>';
+            ? ' <span class="badge badge-success">Inside ' + escapeHtml(hqName) + '</span>'
+            : ' <span class="badge badge-danger">Outside ' + escapeHtml(hqName) + '</span>';
         if ($btn.data('signed-out')) {
             details += '<br><strong>Sign out:</strong> ' + $btn.data('signed-out');
             if (!isNaN(latOut) && !isNaN(lngOut)) {

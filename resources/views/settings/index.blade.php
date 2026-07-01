@@ -27,6 +27,45 @@
     .settings-user-row:last-child { border-bottom: none; }
     @media (max-width: 767.98px) {
         .settings-actions { position: sticky; bottom: 0; background: #fff; padding: 12px 0; border-top: 1px solid #eee; z-index: 5; }
+        .hq-settings-map { height: 260px; }
+    }
+    .hq-settings-map {
+        height: 360px;
+        width: 100%;
+        border-radius: 10px;
+        border: 2px solid #eee;
+        z-index: 1;
+    }
+    .hq-marker-icon {
+        width: 22px;
+        height: 22px;
+        background: #940000;
+        border: 3px solid #fff;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    }
+    .hq-radius-handle {
+        width: 16px;
+        height: 16px;
+        background: #fff;
+        border: 3px solid #940000;
+        border-radius: 50%;
+        box-shadow: 0 2px 6px rgba(0,0,0,.3);
+        cursor: ew-resize;
+    }
+    .hq-test-staff-dot {
+        width: 18px;
+        height: 18px;
+        background: #007bff;
+        border: 3px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 2px 8px rgba(0,0,0,.35);
+    }
+    #hqTestModeToggle.active {
+        background: #940000;
+        color: #fff;
+        border-color: #940000;
     }
 </style>
 
@@ -59,23 +98,44 @@
             </div>
         </div>
 
-        <div class="col-lg-6 settings-section">
+        <div class="col-12 settings-section">
             <div class="tile">
                 <h3 class="tile-title"><i class="fa fa-map-marker"></i> HQ Geofence</h3>
-                <p class="settings-hint">Staff must be inside this zone to sign in/out on web and mobile.</p>
+                <p class="settings-hint">Drag the HQ pin and radius handle on the map, or use <strong>Use my location</strong> while standing at the office. Enable <strong>Test mode</strong> to preview sign-in with a sample staff dot.</p>
+
+                <div id="hqSettingsMap" class="hq-settings-map mb-3"></div>
+
+                <div class="d-flex flex-wrap mb-3" style="gap:8px;">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="hqUseMyLocation">
+                        <i class="fa fa-crosshairs"></i> Use my location
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="hqTestModeToggle">
+                        <i class="fa fa-user"></i> Test mode
+                    </button>
+                </div>
+                <div id="hqTestStatus" class="small mb-3"></div>
+
                 <div class="form-row">
-                    <div class="form-group col-md-6">
-                        <label class="font-weight-bold">Latitude</label>
-                        <input type="number" step="any" name="hq_latitude" class="form-control" value="{{ old('hq_latitude', $hqLatitude) }}" required>
-                    </div>
-                    <div class="form-group col-md-6">
-                        <label class="font-weight-bold">Longitude</label>
-                        <input type="number" step="any" name="hq_longitude" class="form-control" value="{{ old('hq_longitude', $hqLongitude) }}" required>
+                    <div class="form-group col-md-12">
+                        <label class="font-weight-bold">Location name (shown on map)</label>
+                        <input type="text" name="hq_name" id="hq_name" class="form-control" maxlength="80"
+                               value="{{ old('hq_name', $hqName) }}" placeholder="EmCa HQ" required>
+                        <small class="text-muted">Used on the staff sign map marker, distance labels, and alerts.</small>
                     </div>
                 </div>
-                <div class="form-group mb-0">
-                    <label class="font-weight-bold">Radius (metres)</label>
-                    <input type="number" name="geofence_radius" class="form-control" min="10" max="500" value="{{ old('geofence_radius', $geofenceRadius) }}" required>
+                <div class="form-row">
+                    <div class="form-group col-md-4">
+                        <label class="font-weight-bold">Latitude</label>
+                        <input type="number" step="any" name="hq_latitude" id="hq_latitude" class="form-control" value="{{ old('hq_latitude', $hqLatitude) }}" required>
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label class="font-weight-bold">Longitude</label>
+                        <input type="number" step="any" name="hq_longitude" id="hq_longitude" class="form-control" value="{{ old('hq_longitude', $hqLongitude) }}" required>
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label class="font-weight-bold">Radius (metres)</label>
+                        <input type="number" name="geofence_radius" id="geofence_radius" class="form-control" min="10" max="500" value="{{ old('geofence_radius', $geofenceRadius) }}" required>
+                    </div>
                 </div>
             </div>
         </div>
@@ -181,3 +241,239 @@
     </div>
 </form>
 @endsection
+
+@push('styles')
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+@endpush
+
+@push('scripts')
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+    const latInput = document.getElementById('hq_latitude');
+    const lngInput = document.getElementById('hq_longitude');
+    const radiusInput = document.getElementById('geofence_radius');
+    const hqNameInput = document.getElementById('hq_name');
+    const mapEl = document.getElementById('hqSettingsMap');
+    if (!mapEl || !latInput || !lngInput || !radiusInput) return;
+
+    let map, hqMarker, hqLabelMarker, geofenceCircle, radiusHandle, testMarker;
+    let testMode = false;
+
+    function getLat() { return parseFloat(latInput.value); }
+    function getLng() { return parseFloat(lngInput.value); }
+    function getRadius() {
+        const r = parseInt(radiusInput.value, 10);
+        return isNaN(r) ? 70 : Math.min(500, Math.max(10, r));
+    }
+
+    function getHqName() {
+        const name = hqNameInput ? hqNameInput.value.trim() : '';
+        return name || 'EmCa HQ';
+    }
+
+    function escapeMapHtml(text) {
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function hqLabelMarkerHtml() {
+        return '<div style="background:#940000;color:#fff;padding:6px 10px;border-radius:8px;font-weight:bold;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.3);white-space:nowrap;">'
+            + escapeMapHtml(getHqName()) + '</div>';
+    }
+
+    function refreshHqLabelMarker() {
+        if (!hqLabelMarker || !hqMarker) return;
+        const pos = hqMarker.getLatLng();
+        hqLabelMarker.setLatLng(pos);
+        hqLabelMarker.setIcon(L.divIcon({
+            className: '',
+            html: hqLabelMarkerHtml(),
+            iconSize: [80, 24],
+            iconAnchor: [40, 28],
+        }));
+    }
+
+    function haversineM(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2
+            + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function radiusHandleLatLng(lat, lng, radiusM) {
+        const earth = 6371000;
+        const brng = Math.PI / 2;
+        const lat1 = lat * Math.PI / 180;
+        const lng1 = lng * Math.PI / 180;
+        const lat2 = Math.asin(
+            Math.sin(lat1) * Math.cos(radiusM / earth)
+            + Math.cos(lat1) * Math.sin(radiusM / earth) * Math.cos(brng)
+        );
+        const lng2 = lng1 + Math.atan2(
+            Math.sin(brng) * Math.sin(radiusM / earth) * Math.cos(lat1),
+            Math.cos(radiusM / earth) - Math.sin(lat1) * Math.sin(lat2)
+        );
+        return L.latLng(lat2 * 180 / Math.PI, lng2 * 180 / Math.PI);
+    }
+
+    function syncInputs(lat, lng, radius) {
+        latInput.value = Number(lat).toFixed(7);
+        lngInput.value = Number(lng).toFixed(7);
+        if (radius !== undefined) radiusInput.value = Math.round(radius);
+    }
+
+    function hqIcon() {
+        return L.divIcon({
+            className: '',
+            html: '<div class="hq-marker-icon"></div>',
+            iconSize: [22, 22],
+            iconAnchor: [11, 22],
+        });
+    }
+
+    function radiusIcon() {
+        return L.divIcon({
+            className: '',
+            html: '<div class="hq-radius-handle" title="Drag to resize zone"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+        });
+    }
+
+    function testStaffIcon() {
+        return L.divIcon({
+            className: '',
+            html: '<div class="hq-test-staff-dot" title="Sample staff"></div>',
+            iconSize: [18, 18],
+            iconAnchor: [9, 9],
+        });
+    }
+
+    function updateGeofenceVisuals() {
+        const lat = getLat();
+        const lng = getLng();
+        const r = getRadius();
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        hqMarker.setLatLng([lat, lng]);
+        geofenceCircle.setLatLng([lat, lng]).setRadius(r);
+        radiusHandle.setLatLng(radiusHandleLatLng(lat, lng, r));
+        refreshHqLabelMarker();
+        updateTestStatus();
+    }
+
+    function updateTestStatus() {
+        const el = document.getElementById('hqTestStatus');
+        if (!el) return;
+        if (!testMode || !testMarker) {
+            el.innerHTML = '';
+            return;
+        }
+        const center = hqMarker.getLatLng();
+        const pos = testMarker.getLatLng();
+        const dist = haversineM(center.lat, center.lng, pos.lat, pos.lng);
+        const inside = dist <= getRadius();
+        const name = escapeMapHtml(getHqName());
+        el.innerHTML = inside
+            ? '<span class="text-success font-weight-bold"><i class="fa fa-check-circle"></i> Sample staff inside ' + name + ' — sign-in would be allowed</span>'
+            : '<span class="text-danger font-weight-bold"><i class="fa fa-times-circle"></i> Sample staff outside ' + name + ' — '
+                + Math.round(dist) + 'm from center (' + Math.max(0, Math.round(dist - getRadius())) + 'm outside zone)</span>';
+    }
+
+    function toggleTestMode() {
+        const btn = document.getElementById('hqTestModeToggle');
+        testMode = !testMode;
+        if (testMode) {
+            const center = hqMarker.getLatLng();
+            const start = radiusHandleLatLng(center.lat, center.lng, getRadius() * 0.55);
+            testMarker = L.marker(start, { draggable: true, icon: testStaffIcon() }).addTo(map);
+            testMarker.on('drag', updateTestStatus);
+            if (btn) btn.classList.add('active');
+        } else {
+            if (testMarker) map.removeLayer(testMarker);
+            testMarker = null;
+            if (btn) btn.classList.remove('active');
+        }
+        updateTestStatus();
+    }
+
+    map = L.map('hqSettingsMap', { zoomControl: true }).setView([getLat(), getLng()], 17);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+
+    geofenceCircle = L.circle([getLat(), getLng()], {
+        color: '#940000',
+        fillColor: '#940000',
+        fillOpacity: 0.14,
+        weight: 2,
+        radius: getRadius(),
+    }).addTo(map);
+
+    hqMarker = L.marker([getLat(), getLng()], { draggable: true, icon: hqIcon() }).addTo(map);
+    hqLabelMarker = L.marker([getLat(), getLng()], {
+        icon: L.divIcon({ className: '', html: hqLabelMarkerHtml(), iconSize: [80, 24], iconAnchor: [40, 28] }),
+        interactive: false,
+    }).addTo(map);
+    hqMarker.on('drag', function (e) {
+        const pos = e.target.getLatLng();
+        syncInputs(pos.lat, pos.lng);
+        geofenceCircle.setLatLng(pos);
+        radiusHandle.setLatLng(radiusHandleLatLng(pos.lat, pos.lng, getRadius()));
+        refreshHqLabelMarker();
+        updateTestStatus();
+    });
+
+    radiusHandle = L.marker(
+        radiusHandleLatLng(getLat(), getLng(), getRadius()),
+        { draggable: true, icon: radiusIcon() }
+    ).addTo(map);
+    radiusHandle.on('drag', function (e) {
+        const center = hqMarker.getLatLng();
+        const pos = e.target.getLatLng();
+        const dist = haversineM(center.lat, center.lng, pos.lat, pos.lng);
+        const clamped = Math.min(500, Math.max(10, Math.round(dist)));
+        radiusInput.value = clamped;
+        geofenceCircle.setRadius(clamped);
+        updateTestStatus();
+    });
+    radiusHandle.on('dragend', function () {
+        const center = hqMarker.getLatLng();
+        radiusHandle.setLatLng(radiusHandleLatLng(center.lat, center.lng, getRadius()));
+    });
+
+    [latInput, lngInput].forEach(function (input) {
+        input.addEventListener('change', updateGeofenceVisuals);
+    });
+    radiusInput.addEventListener('change', updateGeofenceVisuals);
+    if (hqNameInput) {
+        hqNameInput.addEventListener('input', refreshHqLabelMarker);
+    }
+
+    document.getElementById('hqUseMyLocation')?.addEventListener('click', function () {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported in this browser.');
+            return;
+        }
+        this.disabled = true;
+        navigator.geolocation.getCurrentPosition(function (pos) {
+            syncInputs(pos.coords.latitude, pos.coords.longitude);
+            updateGeofenceVisuals();
+            map.setView([pos.coords.latitude, pos.coords.longitude], 18);
+            document.getElementById('hqUseMyLocation').disabled = false;
+        }, function () {
+            alert('Could not get your location. Allow GPS permission and try again.');
+            document.getElementById('hqUseMyLocation').disabled = false;
+        }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    });
+
+    document.getElementById('hqTestModeToggle')?.addEventListener('click', toggleTestMode);
+
+    setTimeout(function () { map.invalidateSize(); }, 250);
+    window.addEventListener('resize', function () { map.invalidateSize(); });
+})();
+</script>
+@endpush
