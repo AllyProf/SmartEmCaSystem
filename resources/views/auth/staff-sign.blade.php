@@ -626,14 +626,55 @@
             min-height: 220px;
             border: 2px solid #eee;
         }
-        .camera-viewport video,
+        .camera-viewport video {
+            width: 100%;
+            display: block;
+            max-height: 46vh;
+            object-fit: cover;
+        }
         .camera-viewport img {
             width: 100%;
             display: block;
-            max-height: 52vh;
-            object-fit: cover;
+            max-height: 46vh;
+            object-fit: contain;
+            background: #111;
         }
         .camera-viewport video { transform: scaleX(-1); }
+        .camera-location-strip {
+            margin-top: 12px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
+            border: 1px solid rgba(148, 0, 0, 0.18);
+            font-size: 0.82rem;
+            line-height: 1.45;
+            color: #333;
+        }
+        .camera-location-strip .loc-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            color: #940000;
+            margin-bottom: 6px;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .camera-location-strip .loc-place {
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 4px;
+            word-break: break-word;
+        }
+        .camera-location-strip .loc-meta {
+            color: #666;
+            font-size: 0.78rem;
+        }
+        .camera-location-strip.is-loading .loc-place {
+            color: #888;
+            font-style: italic;
+        }
         .camera-status {
             display: flex;
             align-items: center;

@@ -91,6 +91,86 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        .login-top-actions {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+            gap: 8px;
+            padding: 10px 12px;
+            padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .login-action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            flex: 1;
+            min-width: 0;
+            padding: 8px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.75);
+            border-radius: 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            color: #fff;
+            text-decoration: none;
+            text-align: center;
+            line-height: 1.25;
+            background: rgba(0, 0, 0, 0.28);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: background 0.2s ease;
+        }
+        .login-action-btn:hover,
+        .login-action-btn:focus {
+            color: #fff;
+            text-decoration: none;
+            background: rgba(148, 0, 0, 0.72);
+            border-color: #fff;
+        }
+        .login-action-btn .fa {
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+        .login-action-btn--staff {
+            background: rgba(148, 0, 0, 0.5);
+        }
+        .login-action-label-full { display: none; }
+        @media (min-width: 576px) {
+            .login-top-actions {
+                justify-content: flex-end;
+                gap: 10px;
+                padding: 12px 16px;
+                padding-top: max(12px, env(safe-area-inset-top));
+            }
+            .login-action-btn {
+                flex: 0 1 auto;
+                padding: 9px 14px;
+                font-size: 0.8rem;
+            }
+        }
+        @media (min-width: 768px) {
+            .login-top-actions {
+                justify-content: space-between;
+            }
+            .login-action-btn {
+                padding: 10px 16px;
+                font-size: 0.85rem;
+            }
+            .login-action-label-short { display: none; }
+            .login-action-label-full { display: inline; }
+        }
+        @media (max-width: 575px) {
+            .login-content {
+                padding-top: 72px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -98,12 +178,16 @@
         <div class="cover"></div>
     </section>
 
-    <header class="navbar navbar-expand-md navbar-dark d-flex justify-content-between p-3" style="position: absolute; top:0; left: 0; right: 0; width: 100%; z-index: 1000;">
-        <a href="{{ route('staff.sign') }}" class="btn btn-outline-light" style="border-width: 2px; font-weight: bold; background-color: rgba(255,255,255,0.1);">
-            <i class="fa fa-map-marker fa-lg fa-fw"></i> STAFF SIGN AT HQ
+    <header class="login-top-actions">
+        <a href="{{ route('staff.sign') }}" class="login-action-btn login-action-btn--staff">
+            <i class="fa fa-map-marker"></i>
+            <span class="login-action-label-short">Staff Sign</span>
+            <span class="login-action-label-full">Staff Sign at HQ</span>
         </a>
-        <a href="{{ route('visits.verify') }}" class="btn btn-outline-light" style="border-width: 2px; font-weight: bold; background-color: rgba(255,255,255,0.1);">
-            <i class="fa fa-pencil-square-o fa-lg fa-fw"></i> CUSTOMER VISIT
+        <a href="{{ route('visits.verify') }}" class="login-action-btn">
+            <i class="fa fa-pencil-square-o"></i>
+            <span class="login-action-label-short">Visit</span>
+            <span class="login-action-label-full">Customer Visit</span>
         </a>
     </header>
 

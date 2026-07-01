@@ -308,45 +308,91 @@
 
     async function resolvePlaceName(lat, lng) {
         if (!routes.reverseGeocode || lat === null || lng === null) {
-            return 'Unknown location';
+            return null;
         }
 
         try {
             const url = `${routes.reverseGeocode}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lng)}`;
-            const res = await fetch(url, { headers: { Accept: 'application/json' } });
+            const res = await fetch(url, {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!res.ok) return null;
             const data = await res.json();
-            return data.place_name || 'Unknown location';
+            const name = (data.place_name || '').trim();
+            return name && name !== 'Unknown location' ? name : null;
         } catch (e) {
-            return 'Unknown location';
+            return null;
+        }
+    }
+
+    function formatCoordsLabel(lat, lng) {
+        if (lat === null || lng === null) return 'GPS coordinates unavailable';
+        return `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`;
+    }
+
+    function buildPhotoStampLines(placeName) {
+        const stampTime = formatPhotoTimestamp(new Date());
+        const zoneLabel = isInside ? 'At HQ zone' : 'Outside HQ zone';
+        const distLabel = currentDistance != null ? `${Math.round(currentDistance)}m from HQ` : '';
+        const accLabel = currentAccuracy != null ? `±${Math.round(currentAccuracy)}m GPS` : '';
+        const coordLabel = formatCoordsLabel(targetLat, targetLng);
+        const resolvedPlace = (placeName || '').trim();
+        const locationLine = resolvedPlace && resolvedPlace !== 'Unknown location'
+            ? `Location: ${resolvedPlace}`
+            : `Coordinates: ${coordLabel}`;
+
+        return [
+            `EmCa Staff Sign In · ${stampTime}`,
+            locationLine,
+            resolvedPlace && resolvedPlace !== 'Unknown location' ? `Coordinates: ${coordLabel}` : null,
+            [zoneLabel, distLabel, accLabel].filter(Boolean).join(' · '),
+        ].filter(Boolean);
+    }
+
+    function updateCameraLocationPanel(placeName, loading = false) {
+        const panel = document.getElementById('cameraLocationStrip');
+        if (!panel) return;
+
+        const placeEl = panel.querySelector('.loc-place');
+        const metaEl = panel.querySelector('.loc-meta');
+        const resolvedPlace = (placeName || '').trim();
+        const hasPlace = resolvedPlace && resolvedPlace !== 'Unknown location';
+
+        panel.classList.toggle('is-loading', loading);
+
+        if (placeEl) {
+            if (loading && !hasPlace) {
+                placeEl.textContent = 'Resolving place name…';
+            } else if (hasPlace) {
+                placeEl.textContent = resolvedPlace;
+            } else {
+                placeEl.textContent = formatCoordsLabel(targetLat, targetLng);
+            }
+        }
+
+        if (metaEl) {
+            const zoneLabel = isInside ? 'At HQ zone' : 'Outside HQ zone';
+            const distLabel = currentDistance != null ? `${Math.round(currentDistance)}m from HQ` : '';
+            const accLabel = currentAccuracy != null ? `±${Math.round(currentAccuracy)}m accuracy` : '';
+            const timeLabel = formatPhotoTimestamp(new Date());
+            metaEl.textContent = [zoneLabel, distLabel, accLabel, timeLabel].filter(Boolean).join(' · ');
         }
     }
 
     function drawPhotoLocationOverlay(ctx, width, height, placeName) {
-        if (targetLat === null || targetLng === null) return;
-
-        const pad = Math.max(10, Math.round(width * 0.028));
-        const fontSize = Math.max(13, Math.round(width * 0.028));
-        const lineHeight = Math.round(fontSize * 1.38);
-        const stampTime = formatPhotoTimestamp(new Date());
-        const zoneLabel = isInside ? 'At HQ zone' : 'Outside HQ zone';
-        const distLabel = currentDistance != null ? `${Math.round(currentDistance)}m from HQ center` : '';
-        const accLabel = currentAccuracy != null ? `±${Math.round(currentAccuracy)}m GPS accuracy` : '';
-        const barWidth = Math.max(4, Math.round(width * 0.008));
+        const pad = Math.max(12, Math.round(Math.min(width, height) * 0.028));
+        const fontSize = Math.max(16, Math.round(Math.min(width, height) * 0.032));
+        const lineHeight = Math.round(fontSize * 1.35);
+        const barWidth = Math.max(5, Math.round(width * 0.01));
         const textStartX = pad + barWidth;
         const maxTextWidth = width - textStartX - pad;
 
-        ctx.font = `600 ${fontSize}px "Century Gothic", CenturyGothic, AppleGothic, sans-serif`;
-        const locationLines = wrapCanvasText(ctx, `Location: ${placeName}`, maxTextWidth);
-
-        const lines = [
-            `EmCa Staff Sign In · ${stampTime}`,
-            ...locationLines,
-            [zoneLabel, distLabel, accLabel].filter(Boolean).join(' · '),
-        ];
-
+        ctx.font = `600 ${fontSize}px Arial, Helvetica, sans-serif`;
+        const lines = buildPhotoStampLines(placeName).flatMap((line) => wrapCanvasText(ctx, line, maxTextWidth));
         const boxHeight = pad * 2 + lines.length * lineHeight;
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.68)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
         ctx.fillRect(0, height - boxHeight, width, boxHeight);
 
         ctx.fillStyle = '#940000';
@@ -354,8 +400,8 @@
 
         ctx.fillStyle = '#ffffff';
         ctx.textBaseline = 'top';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-        ctx.shadowBlur = 2;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        ctx.shadowBlur = 3;
 
         lines.forEach((line, index) => {
             ctx.fillText(line, textStartX, height - boxHeight + pad + index * lineHeight);
@@ -381,11 +427,16 @@
 
         const cameraHtml = `
             <div class="camera-modal-body">
-                <p class="camera-modal-hint">Allow camera access, position your face in the frame, then tap <strong>Capture</strong>. The place name and time will be stamped on the photo.</p>
+                <p class="camera-modal-hint">Allow camera access, position your face in the frame, then tap <strong>Capture</strong>. Location details are stamped on the photo.</p>
                 <div class="camera-viewport" id="cameraViewport">
                     <div class="camera-status" id="cameraLoading"><i class="fa fa-spinner fa-spin"></i> Opening camera...</div>
                     <video id="swalVideo" autoplay playsinline muted style="display:none"></video>
                     <img id="swalPreview" alt="Preview" style="display:none">
+                </div>
+                <div class="camera-location-strip is-loading" id="cameraLocationStrip">
+                    <div class="loc-title"><i class="fa fa-map-marker"></i> Sign-in location</div>
+                    <div class="loc-place">Loading location…</div>
+                    <div class="loc-meta"></div>
                 </div>
             </div>`;
 
@@ -448,9 +499,20 @@
         let cachedPlaceName = null;
 
         const prefetchPlaceName = async () => {
-            if (targetLat !== null && targetLng !== null) {
-                cachedPlaceName = await resolvePlaceName(targetLat, targetLng);
+            updateCameraLocationPanel(null, true);
+
+            if (targetLat === null || targetLng === null) {
+                cachedPlaceName = null;
+                updateCameraLocationPanel(null, false);
+                return;
             }
+
+            cachedPlaceName = null;
+            updateCameraLocationPanel(null, true);
+
+            const resolved = await resolvePlaceName(targetLat, targetLng);
+            cachedPlaceName = resolved;
+            updateCameraLocationPanel(resolved, false);
         };
 
         const grabFrame = async () => {
@@ -465,8 +527,10 @@
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0);
-            drawPhotoLocationOverlay(ctx, canvas.width, canvas.height, cachedPlaceName || 'Unknown location');
-            return canvas.toDataURL('image/jpeg', 0.82);
+            drawPhotoLocationOverlay(ctx, canvas.width, canvas.height, cachedPlaceName);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            updateCameraLocationPanel(cachedPlaceName, false);
+            return dataUrl;
         };
 
         previewDataUrl = null;
