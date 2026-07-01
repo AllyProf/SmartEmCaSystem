@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -14,7 +15,18 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'staff.auth' => \App\Http\Middleware\StaffApiAuth::class,
+            'staff.sign.session' => \App\Http\Middleware\StaffSignSessionTimeout::class,
+            'staff.sign.verified' => \App\Http\Middleware\EnsureStaffSignVerified::class,
+            'staff.sign.nocache' => \App\Http\Middleware\PreventStaffSignPageCache::class,
         ]);
+
+        $middleware->redirectGuestsTo(function (Request $request) {
+            if ($request->is('staff/sign*')) {
+                return route('staff.sign');
+            }
+
+            return route('login');
+        });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

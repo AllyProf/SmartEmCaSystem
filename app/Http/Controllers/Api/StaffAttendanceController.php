@@ -11,15 +11,18 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use App\Services\AttendanceGeofenceService;
+use App\Services\AttendanceNotificationService;
+use App\Services\AttendanceRulesService;
+use App\Services\StaffDeviceService;
 
 class StaffAttendanceController extends Controller
 {
-    // The exact, highly accurate coordinates you provided
-    private const HQ_LATITUDE = -3.3520992;
-    private const HQ_LONGITUDE = 37.3375088;
-    
-    // The strict 40-meter limit
-    private const ALLOWED_RADIUS = 40.0;
+    public function __construct(
+        protected AttendanceGeofenceService $geofence,
+        protected AttendanceRulesService $rules,
+        protected AttendanceNotificationService $notifications
+    ) {}
 
     /**
      * Staff Login - Returns API token
@@ -67,20 +70,19 @@ class StaffAttendanceController extends Controller
             ], 403);
         }
 
-        // Device ID Binding (Phone-Lock) Security - Strict Enforcement
-        if (!empty($user->device_id)) {
-            // Account is already bound to a phone. Request MUST have matching device_id.
-            if ($user->device_id !== $request->device_id) {
-                return response()->json([
-                    'success' => false,
-                    'error'   => 'Unauthorized device. This account is locked to another phone. Contact Admin to reset.',
-                    'message' => 'Unauthorized device. Access denied.'
-                ], 403);
-            }
-        } elseif (!empty($request->device_id)) {
-            // First time login - Bind the device
-            $user->device_id = $request->device_id;
-            $user->save();
+        // Device binding: mobile app uses device_id, web staff sign uses web_device_id.
+        $deviceError = app(StaffDeviceService::class)->assertDevice(
+            $user,
+            $request->device_id,
+            true,
+            StaffDeviceService::PLATFORM_MOBILE
+        );
+        if ($deviceError) {
+            return response()->json([
+                'success' => false,
+                'error'   => $deviceError,
+                'message' => $deviceError,
+            ], 403);
         }
 
         // Generate API token
@@ -201,10 +203,9 @@ class StaffAttendanceController extends Controller
         $userLng = (float) $request->input('longitude');
 
         // 2. Calculate the exact distance using the Haversine formula
-        $distance = $this->calculateDistanceInMeters(self::HQ_LATITUDE, self::HQ_LONGITUDE, $userLat, $userLng);
+        $distance = $this->geofence->distanceFromHq($userLat, $userLng);
 
-        // 3. Enforce the Geofence Rule (70 Meters)
-        if ($distance > self::ALLOWED_RADIUS) {
+        if (!$this->geofence->isWithinHq($userLat, $userLng)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Geofence Violation: Restricted Access. You are ' . round($distance, 1) . 'm away from HQ.',
@@ -213,14 +214,21 @@ class StaffAttendanceController extends Controller
         }
 
         // 4. Verification checks out -> Log the attendance
+        $signedInAt = Carbon::parse($request->input('timestamp'));
+
         $attendance = StaffAttendance::create([
             'user_id'              => $user->id,
-            'signed_in_at'         => Carbon::parse($request->input('timestamp')),
+            'signed_in_at'         => $signedInAt,
             'latitude_in'          => $userLat,
             'longitude_in'         => $userLng,
             'verification_type_in' => $request->input('verification_type'),
             'location_verified_in' => true,
+            'is_late'              => $this->rules->isLate($signedInAt),
         ]);
+
+        if ($attendance->is_late) {
+            $this->notifications->notifyLateSignIn($user, $attendance);
+        }
 
         return response()->json([
             'success'         => true,
@@ -260,10 +268,9 @@ class StaffAttendanceController extends Controller
         $userLng = (float) $request->input('longitude');
 
         // 2. Calculate the exact distance using the Haversine formula
-        $distance = $this->calculateDistanceInMeters(self::HQ_LATITUDE, self::HQ_LONGITUDE, $userLat, $userLng);
+        $distance = $this->geofence->distanceFromHq($userLat, $userLng);
 
-        // 3. Enforce the Geofence Rule (70 Meters)
-        if ($distance > self::ALLOWED_RADIUS) {
+        if (!$this->geofence->isWithinHq($userLat, $userLng)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Geofence Violation: Restricted Access. You are ' . round($distance, 1) . 'm away from HQ.',
@@ -332,26 +339,5 @@ class StaffAttendanceController extends Controller
             'total'   => count($logs),
             'logs'    => $logs,
         ]);
-    }
-
-    /**
-     * Haversine Formula helper method to calculate distance in meters
-     */
-    private function calculateDistanceInMeters($lat1, $lon1, $lat2, $lon2) 
-    {
-        $earthRadius = 6371000; // Radius of the Earth in meters
-        
-        // Convert degrees to radians
-        $latDelta = deg2rad($lat2 - $lat1);
-        $lonDelta = deg2rad($lon2 - $lon1);
-        
-        $a = sin($latDelta / 2) * sin($latDelta / 2) + 
-             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * 
-             sin($lonDelta / 2) * sin($lonDelta / 2);
-             
-        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-        
-        // Return distance in exact meters
-        return $earthRadius * $c;
     }
 }

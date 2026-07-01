@@ -1,0 +1,183 @@
+/**
+ * EmCa brand overrides — replaces Vali theme teal (#009688, #00635a, etc.)
+ */
+:root {
+    --primary: #940000;
+}
+
+::selection,
+::-moz-selection {
+    color: #fff !important;
+    background-color: #940000 !important;
+}
+
+.btn-primary,
+.btn-primary.disabled,
+.btn-primary:disabled {
+    background-color: #940000 !important;
+    border-color: #940000 !important;
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary.focus,
+.btn-primary:not(:disabled):not(.disabled):active,
+.btn-primary:not(:disabled):not(.disabled).active,
+.show > .btn-primary.dropdown-toggle {
+    background-color: #7a0000 !important;
+    border-color: #7a0000 !important;
+    color: #fff !important;
+}
+
+.btn-primary:focus,
+.btn-primary.focus,
+.btn-primary:not(:disabled):not(.disabled):active:focus,
+.btn-primary:not(:disabled):not(.disabled).active:focus,
+.show > .btn-primary.dropdown-toggle:focus {
+    box-shadow: 0 0 0 0.2rem rgba(148, 0, 0, 0.35) !important;
+}
+
+.btn-outline-primary {
+    color: #940000 !important;
+    border-color: #940000 !important;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active {
+    background-color: #940000 !important;
+    border-color: #940000 !important;
+    color: #fff !important;
+}
+
+.bg-primary {
+    background-color: #940000 !important;
+}
+
+a.bg-primary:hover,
+a.bg-primary:focus,
+button.bg-primary:hover,
+button.bg-primary:focus {
+    background-color: #7a0000 !important;
+}
+
+.text-primary {
+    color: #940000 !important;
+}
+
+a.text-primary:hover,
+a.text-primary:focus {
+    color: #7a0000 !important;
+}
+
+.border-primary {
+    border-color: #940000 !important;
+}
+
+.badge-primary {
+    background-color: #940000 !important;
+}
+
+.badge-primary[href]:hover,
+.badge-primary[href]:focus {
+    background-color: #7a0000 !important;
+}
+
+.app-sidebar__toggle:focus,
+.app-sidebar__toggle:hover {
+    background-color: #7a0000 !important;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #940000 !important;
+    border-color: #940000 !important;
+}
+
+.page-link {
+    color: #940000;
+}
+
+.page-link:hover {
+    color: #7a0000;
+}
+
+.form-control:focus {
+    border-color: #940000 !important;
+    box-shadow: 0 0 0 0.2rem rgba(148, 0, 0, 0.25) !important;
+}
+
+.custom-control-input:checked ~ .custom-control-label::before {
+    background-color: #940000 !important;
+    border-color: #940000 !important;
+}
+
+.custom-control-input:focus ~ .custom-control-label::before {
+    box-shadow: 0 0 0 0.2rem rgba(148, 0, 0, 0.25) !important;
+}
+
+.dropdown-item.active,
+.dropdown-item:active {
+    background-color: #940000 !important;
+}
+
+.list-group-item.active {
+    background-color: #940000 !important;
+    border-color: #940000 !important;
+}
+
+.animated-checkbox input[type="checkbox"]:checked + .label-text:before {
+    background-color: #940000 !important;
+    border-color: #940000 !important;
+}
+
+.animated-radio input[type="radio"]:checked + .label-text:before {
+    border-color: #940000 !important;
+}
+
+.nav-tabs .nav-link.active {
+    color: #940000 !important;
+}
+
+.treeview-item.active,
+.treeview.is-expanded [data-toggle="treeview"] {
+    color: #940000 !important;
+}
+
+.widget-small.primary.coloured-icon .icon {
+    background-color: #940000 !important;
+}
+
+.tile .tile-title {
+    color: #940000;
+}
+
+.material-half-bg .cover {
+    background-color: #940000 !important;
+}
+
+.sweet-alert button,
+.sweet-alert button:hover,
+.sweet-alert button:active {
+    background-color: #940000 !important;
+}
+
+.sweet-alert button:hover {
+    background-color: #7a0000 !important;
+}
+
+.sweet-alert button:active {
+    background-color: #7a0000 !important;
+}
+
+.fc-button-primary,
+.fc-button-primary:hover,
+.fc-button-primary:active {
+    background-color: #940000 !important;
+    border-color: #940000 !important;
+}
+
+.fc-button-primary:hover,
+.fc-button-primary:active {
+    background-color: #7a0000 !important;
+    border-color: #7a0000 !important;
+}

@@ -23,6 +23,16 @@
         <div class="tile">
             <h3 class="tile-title">Edit User Details - {{ $user->name }}</h3>
             <div class="tile-body">
+                @if ($errors->any())
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+                @endif
+
                 <form action="{{ route('users.update', $user->id) }}" method="POST">
                     @csrf
                     @method('PUT')
@@ -66,6 +76,22 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="control-label">Attendance Sign PIN (4 digits)</label>
+                        <input class="form-control" type="password" name="sign_pin" maxlength="4" pattern="\d{4}" inputmode="numeric" placeholder="Leave blank to keep current PIN" autocomplete="new-password">
+                        <small class="form-text text-muted">
+                            Used on the Staff Sign at HQ page.
+                            @if(!empty($user->sign_pin))
+                                <span class="text-success font-weight-bold">Currently set.</span> Enter a new value only to change it.
+                            @else
+                                <span class="text-warning font-weight-bold">Not set yet.</span> Enter a 4-digit PIN.
+                            @endif
+                        </small>
+                        @error('sign_pin')
+                            <small class="text-danger">{{ $message }}</small>
+                        @enderror
                     </div>
 
                     <div class="form-group">

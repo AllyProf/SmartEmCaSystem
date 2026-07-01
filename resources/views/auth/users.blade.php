@@ -129,7 +129,7 @@
             
             Swal.fire({
                 title: 'Reset Device Lock?',
-                text: "Reset device lock for " + name + "? They will be able to login from a new phone.",
+                text: "Reset mobile and web device locks for " + name + "? They can sign in again on a new phone or browser.",
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#940000',

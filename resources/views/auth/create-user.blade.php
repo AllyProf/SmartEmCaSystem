@@ -63,6 +63,12 @@
                         </div>
                     </div>
                     <div class="form-group">
+                        <label class="control-label">Attendance Sign PIN (4 digits)</label>
+                        <input class="form-control" type="password" name="sign_pin" maxlength="4" pattern="\d{4}" inputmode="numeric" placeholder="Required for HQ sign in/out">
+                        <small class="form-text text-muted">Staff use this PIN on the mobile sign page.</small>
+                    </div>
+
+                    <div class="form-group">
                         <label class="control-label">Role <span class="text-danger">*</span></label>
                         <select class="form-control" name="role" required>
                             @if(auth()->user()->isSuperAdmin())

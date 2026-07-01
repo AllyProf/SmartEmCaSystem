@@ -17,10 +17,12 @@ class SmsLog extends Model
         'message_id',
         'sent_by',
         'sent_at',
+        'scheduled_at',
     ];
 
     protected $casts = [
         'sent_at' => 'datetime',
+        'scheduled_at' => 'datetime',
     ];
 
     // Relationships

@@ -29,19 +29,32 @@
                     @endif
                 </td>
                 <td>
-                    @if($user->device_id)
-                        <div class="d-flex align-items-center justify-content-between">
-                            <span class="badge badge-success"><i class="fa fa-lock"></i> Locked</span>
-                            <button type="button" class="btn btn-sm btn-outline-danger py-0 btn-reset-device" 
+                    <div class="small">
+                        <div class="mb-1">
+                            <i class="fa fa-mobile"></i>
+                            @if($user->device_id)
+                                <span class="badge badge-success">Mobile locked</span>
+                            @else
+                                <span class="badge badge-secondary">Mobile free</span>
+                            @endif
+                        </div>
+                        <div>
+                            <i class="fa fa-globe"></i>
+                            @if($user->web_device_id)
+                                <span class="badge badge-success">Web locked</span>
+                            @else
+                                <span class="badge badge-secondary">Web free</span>
+                            @endif
+                        </div>
+                        @if($user->device_id || $user->web_device_id)
+                            <button type="button" class="btn btn-sm btn-outline-danger py-0 mt-1 btn-reset-device"
                                     data-url="{{ route('users.reset_device', $user->id) }}"
                                     data-name="{{ $user->name }}"
-                                    title="Reset Device Lock">
-                                <i class="fa fa-refresh"></i> Reset
+                                    title="Reset device locks">
+                                <i class="fa fa-refresh"></i> Reset both
                             </button>
-                        </div>
-                    @else
-                        <span class="badge badge-secondary">Not Linked</span>
-                    @endif
+                        @endif
+                    </div>
                 </td>
                 <td>{{ $user->creator->name ?? 'System' }}</td>
                 <td>{{ $user->created_at->format('M d, Y') }}</td>

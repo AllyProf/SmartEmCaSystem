@@ -9,6 +9,7 @@
     
     <!-- Main CSS-->
     <link rel="stylesheet" type="text/css" href="{{ asset('vali-master/docs/css/main.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ asset('css/brand-overrides.css') }}">
     <!-- Font-icon css-->
     <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
     
@@ -126,12 +127,24 @@
                     <span class="app-menu__label">Confirmations</span>
                 </a>
             </li>
+            <li>
+                <a class="app-menu__item {{ request()->routeIs('reports.index') ? 'active' : '' }}" href="{{ route('reports.index') }}">
+                    <i class="app-menu__icon fa fa-pie-chart"></i>
+                    <span class="app-menu__label">Reports</span>
+                </a>
+            </li>
             @endif
             @if(auth()->user()->role === 'ceo' || auth()->user()->role === 'super_admin' || auth()->user()->role === 'hr')
             <li>
                 <a class="app-menu__item {{ request()->routeIs('attendance.*') ? 'active' : '' }}" href="{{ route('attendance.index') }}">
                     <i class="app-menu__icon fa fa-clock-o"></i>
                     <span class="app-menu__label">Attendance</span>
+                </a>
+            </li>
+            <li>
+                <a class="app-menu__item {{ request()->routeIs('settings.*') ? 'active' : '' }}" href="{{ route('settings.index') }}">
+                    <i class="app-menu__icon fa fa-cogs"></i>
+                    <span class="app-menu__label">Settings</span>
                 </a>
             </li>
             @endif
@@ -158,24 +171,6 @@
             </ul>
         </div>
         
-        @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            {{ session('success') }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-        @endif
-
-        @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            {{ session('error') }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-        @endif
-
         @if ($errors->any())
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
             <ul class="mb-0">
@@ -203,25 +198,29 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer)
+                toast.addEventListener('mouseleave', Swal.resumeTimer)
+            }
+        });
+
         @if(session('success'))
-            Swal.fire({
+            Toast.fire({
                 icon: 'success',
-                title: 'Success!',
-                text: "{{ addslashes(session('success')) }}",
-                confirmButtonColor: '#940000',
-                confirmButtonText: 'OK',
-                timer: 5000,
-                timerProgressBar: true,
+                title: "{{ addslashes(session('success')) }}"
             });
         @endif
 
         @if(session('error'))
-            Swal.fire({
+            Toast.fire({
                 icon: 'error',
-                title: 'Error!',
-                text: "{{ addslashes(session('error')) }}",
-                confirmButtonColor: '#940000',
-                confirmButtonText: 'OK',
+                title: "{{ addslashes(session('error')) }}"
             });
         @endif
 

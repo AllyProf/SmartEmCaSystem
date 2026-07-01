@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Customer;
 use App\Models\VisitConfirmation;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -110,7 +111,7 @@ class VisitorController extends Controller
                 'location' => 'nullable|string',
                 'customer_name' => 'required|string',
                 'contact_person' => 'nullable|string',
-                'phone' => 'nullable|string',
+                'phone' => 'required|string',
                 'email' => 'nullable|email',
                 'representative_name' => 'required|string',
                 'representative_title' => 'nullable|string',
@@ -125,16 +126,18 @@ class VisitorController extends Controller
             $customerSigPath = $this->saveSignature($request->customer_signature, 'signatures/customers');
             $repSigPath = $this->saveSignature($request->representative_signature, 'signatures/staff');
 
+            $normalizedPhone = Customer::normalizePhoneNumber($request->phone);
+
             $visit = VisitConfirmation::create([
                 'type' => 'single',
                 'visit_date' => $request->visit_date,
                 'location' => $request->location,
                 'customer_name' => $request->customer_name,
                 'contact_person' => $request->contact_person,
-                'phone' => $request->phone,
+                'phone' => $normalizedPhone,
                 'email' => $request->email,
                 'representative_name' => $request->representative_name,
-                'representative_title' => $request->representative_title,
+                'representative_title' => $staff?->role_label ?? $request->representative_title,
                 'purpose' => $request->purpose,
                 'feedback' => $request->feedback,
                 'satisfaction_level' => $request->satisfaction_level,
@@ -143,9 +146,17 @@ class VisitorController extends Controller
                 'created_by_email' => $sender_email,
             ]);
 
+            // Create or update Customer in DB
+            $customer = Customer::findOrCreateByPhone($request->phone, [
+                'name' => $request->customer_name,
+                'location' => $request->location,
+                'visiting_purpose' => $request->purpose,
+            ], $staff?->id);
+            $customerId = $customer?->id;
+
             // SEND SMS TO CUSTOMER
-            if ($request->phone) {
-                $this->smsService->sendAndLog($request->phone, $smsBody, 'customer_visit', null, $staff ? $staff->id : null);
+            if ($normalizedPhone) {
+                $this->smsService->sendAndLog($normalizedPhone, $smsBody, 'customer_visit', $customerId, $staff ? $staff->id : null);
             }
 
             // SEND SMS TO STAFF
@@ -171,6 +182,8 @@ class VisitorController extends Controller
 
             foreach ($request->attendees as $attendee) {
                 $sigPath = null;
+                $customer = null;
+                $customerId = null;
                 if (isset($attendee['signature']) && $attendee['signature']) {
                      $sigPath = $this->saveSignature($attendee['signature'], 'signatures/attendees');
                 }
@@ -184,9 +197,19 @@ class VisitorController extends Controller
                     'signature_path' => $sigPath,
                 ]);
 
-                // SEND SMS TO EACH ATTENDEE
+                // Create or update Customer record
                 if (!empty($attendee['phone'])) {
-                    $this->smsService->sendAndLog($attendee['phone'], $smsBody, 'group_visit', null, $staff ? $staff->id : null);
+                    $customer = Customer::findOrCreateByPhone($attendee['phone'], [
+                        'name' => $attendee['name'],
+                        'location' => $attendee['institution'] ?? null,
+                        'visiting_purpose' => $request->subject ?? 'Group Visit Attendee',
+                    ], $staff?->id);
+                    $customerId = $customer?->id;
+                }
+
+                // SEND SMS TO EACH ATTENDEE
+                if (!empty($attendee['phone']) && $customer) {
+                    $this->smsService->sendAndLog($customer->phone_number, $smsBody, 'group_visit', $customerId, $staff ? $staff->id : null);
                 }
             }
 

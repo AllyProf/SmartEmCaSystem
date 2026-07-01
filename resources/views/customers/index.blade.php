@@ -12,6 +12,45 @@
 
 @section('content')
 <div class="row">
+    <div class="col-md-6 col-lg-3">
+        <div class="widget-small primary coloured-icon">
+            <i class="icon fa fa-users fa-3x"></i>
+            <div class="info">
+                <h4>Total Customers</h4>
+                <p><b>{{ $stats['total'] }}</b></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="widget-small info coloured-icon">
+            <i class="icon fa fa-user-plus fa-3x"></i>
+            <div class="info">
+                <h4>Added Today</h4>
+                <p><b>{{ $stats['today'] }}</b></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="widget-small warning coloured-icon">
+            <i class="icon fa fa-calendar fa-3x"></i>
+            <div class="info">
+                <h4>This Week</h4>
+                <p><b>{{ $stats['this_week'] }}</b></p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="widget-small danger coloured-icon">
+            <i class="icon fa fa-calendar-check-o fa-3x"></i>
+            <div class="info">
+                <h4>This Month</h4>
+                <p><b>{{ $stats['this_month'] }}</b></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
     <div class="col-md-12">
         <div class="tile">
             <div class="tile-title-w-btn">
@@ -38,7 +77,7 @@
                                 <td>{{ $customer->phone_number }}</td>
                                 <td>{{ $customer->location ?? 'N/A' }}</td>
                                 <td>{{ Str::limit($customer->visiting_purpose, 50) ?? 'N/A' }}</td>
-                                <td>{{ $customer->created_at->format('M d, Y') }}</td>
+                                <td data-order="{{ $customer->created_at->timestamp }}">{{ $customer->created_at->format('M d, Y') }}</td>
                                 <td>
                                     <a href="{{ route('customers.show', $customer->id) }}" class="btn btn-sm btn-info"><i class="fa fa-eye"></i></a>
                                     <a href="{{ route('customers.edit', $customer->id) }}" class="btn btn-sm btn-primary"><i class="fa fa-edit"></i></a>
@@ -145,7 +184,8 @@
 <script>
     $('#customersTable').DataTable({
         "paging": false,
-        "info": false
+        "info": false,
+        "order": [[4, "desc"]]
     });
 </script>
 @endpush

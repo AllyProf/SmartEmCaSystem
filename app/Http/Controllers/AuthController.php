@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use App\Models\PasswordOtpReset;
 use App\Services\SmsService;
+use App\Services\StaffDeviceService;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -116,6 +117,7 @@ class AuthController extends Controller
             'phone' => 'required|string|max:20|unique:users,phone',
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|in:ceo,hr,staff',
+            'sign_pin' => ['nullable', 'string', 'regex:/^\d{4}$/'],
         ]);
 
         if ($validator->fails()) {
@@ -138,6 +140,7 @@ class AuthController extends Controller
             'email' => $request->email,
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
+            'sign_pin' => $request->filled('sign_pin') ? Hash::make($request->sign_pin) : null,
             'role' => $request->role,
             'created_by' => auth()->id(),
         ]);
@@ -278,9 +281,9 @@ class AuthController extends Controller
             abort(403);
         }
 
-        $user->update(['device_id' => null]);
+        app(StaffDeviceService::class)->resetPlatform($user);
 
-        return back()->with('success', "Device lock has been reset for {$user->name}. They can now login from a new phone.");
+        return back()->with('success', "Device locks have been reset for {$user->name}. They can sign in again on mobile and web.");
     }
 
     /**
@@ -320,6 +323,7 @@ class AuthController extends Controller
             'phone' => 'required|string|max:20|unique:users,phone,' . $user->id,
             'role' => 'required|in:ceo,hr,staff',
             'password' => 'nullable|string|min:8|confirmed',
+            'sign_pin' => ['nullable', 'string', 'regex:/^\d{4}$/'],
         ]);
 
         if ($validator->fails()) {
@@ -347,9 +351,21 @@ class AuthController extends Controller
             $updateData['password'] = Hash::make($request->password);
         }
 
+        if ($request->filled('sign_pin')) {
+            $updateData['sign_pin'] = Hash::make($request->sign_pin);
+        }
+
         $user->update($updateData);
 
-        return redirect()->route('users.index')->with('success', 'User updated successfully!');
+        $message = 'User updated successfully!';
+        if ($request->filled('sign_pin')) {
+            $message .= ' Attendance sign PIN was updated.';
+        }
+        if ($request->filled('password')) {
+            $message .= ' Password was changed.';
+        }
+
+        return redirect()->route('users.index')->with('success', $message);
     }
 
     /**

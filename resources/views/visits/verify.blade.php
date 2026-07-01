@@ -3,6 +3,22 @@
 @section('title', 'Staff Verification')
 @section('header', 'Staff Authentication')
 
+@push('styles')
+<style>
+    body {
+        background-image: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url('{{ asset('images/confirmation_background_image.jpg') }}');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        min-height: 100vh;
+    }
+    .visit-container {
+        background: rgba(255, 255, 255, 0.97);
+    }
+</style>
+@endpush
+
 @section('content')
 <div class="row justify-content-center">
     <div class="col-md-8 col-lg-6">

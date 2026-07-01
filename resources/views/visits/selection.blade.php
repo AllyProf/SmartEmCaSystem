@@ -41,6 +41,17 @@
 
 @push('styles')
 <style>
+    body {
+        background-image: linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.35)), url('{{ asset('images/confirmation_background_image.jpg') }}');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+        min-height: 100vh;
+    }
+    .visit-container {
+        background: rgba(255, 255, 255, 0.97);
+    }
     .icon-circle {
         width: 80px;
         height: 80px;

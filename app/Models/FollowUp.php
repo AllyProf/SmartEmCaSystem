@@ -10,14 +10,19 @@ class FollowUp extends Model
     protected $fillable = [
         'customer_id',
         'visit_date',
+        'visit_time',
         'visit_purpose',
         'notes',
         'status',
         'next_follow_up_date',
+        'next_follow_up_time',
         'reminder_date',
+        'reminder_time',
+        'reminder_message',
         'reminder_sent_at',
         'remind_via',
         'assigned_to',
+        'collaborators',
         'created_by',
     ];
 
@@ -26,6 +31,7 @@ class FollowUp extends Model
         'next_follow_up_date' => 'date',
         'reminder_date'       => 'date',
         'reminder_sent_at'    => 'datetime',
+        'collaborators'       => 'array',
     ];
 
     // Relationships

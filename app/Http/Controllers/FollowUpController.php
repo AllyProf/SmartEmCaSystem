@@ -29,7 +29,16 @@ class FollowUpController extends Controller
         $customers = Customer::orderBy('name', 'asc')->get();
         $users = \App\Models\User::whereIn('role', ['ceo', 'staff'])->orderBy('name', 'asc')->get();
         $selectedCustomerId = $request->get('customer_id');
-        return view('follow-ups.create', compact('customers', 'users', 'selectedCustomerId'));
+        
+        $customerHistory = null;
+        if ($selectedCustomerId) {
+            $customerHistory = FollowUp::with('assignedUser')->where('customer_id', $selectedCustomerId)
+                                       ->orderBy('created_at', 'desc')
+                                       ->take(5)
+                                       ->get();
+        }
+        
+        return view('follow-ups.create', compact('customers', 'users', 'selectedCustomerId', 'customerHistory'));
     }
 
     /**
@@ -42,16 +51,23 @@ class FollowUpController extends Controller
             'visit_date'          => 'required|date',
             'visit_purpose'       => 'nullable|string|max:1000',
             'notes'               => 'nullable|string|max:2000',
-            'status'              => 'required|in:pending,completed,cancelled',
+            'status'              => 'required|string|max:255',
             'next_follow_up_date' => 'nullable|date|after_or_equal:today',
-            'assigned_to'         => 'nullable|exists:users,id',
+            'next_follow_up_time' => 'nullable|date_format:H:i',
+            'collaborators'       => 'nullable|array',
+            'collaborators.*'     => 'exists:users,id',
             'reminder_date'       => 'nullable|date',
+            'reminder_time'       => 'nullable|date_format:H:i',
+            'reminder_message'    => 'nullable|string|max:1000',
             'remind_via'          => 'nullable|in:assigned_user,customer,both',
         ]);
 
         if ($validator->fails()) {
             return back()->withErrors($validator)->withInput();
         }
+
+        $collaborators = $request->collaborators ?? [];
+        $assignedTo = !empty($collaborators) ? $collaborators[0] : null;
 
         FollowUp::create([
             'customer_id'         => $request->customer_id,
@@ -60,14 +76,23 @@ class FollowUpController extends Controller
             'notes'               => $request->notes,
             'status'              => $request->status,
             'next_follow_up_date' => $request->next_follow_up_date,
-            'assigned_to'         => $request->assigned_to,
+            'next_follow_up_time' => $request->next_follow_up_time,
+            'assigned_to'         => $assignedTo,
+            'collaborators'       => $collaborators,
             'created_by'          => auth()->id(),
             'reminder_date'       => $request->reminder_date,
+            'reminder_time'       => $request->reminder_time,
+            'reminder_message'    => $request->reminder_message,
             'remind_via'          => $request->remind_via ?? 'assigned_user',
         ]);
 
+        if ($request->has('schedule_next')) {
+            return redirect()->route('follow-ups.create', ['customer_id' => $request->customer_id])
+                ->with('success', 'Conversation logged! Now create the pending follow-up for the future.');
+        }
+
         return redirect()->route('follow-ups.index')
-            ->with('success', 'Follow-up created successfully! SMS reminder will be sent on the reminder date.');
+            ->with('success', 'Follow-up created successfully!');
     }
 
     /**
@@ -102,10 +127,14 @@ class FollowUpController extends Controller
             'visit_date'          => 'required|date',
             'visit_purpose'       => 'nullable|string|max:1000',
             'notes'               => 'nullable|string|max:2000',
-            'status'              => 'required|in:pending,completed,cancelled',
+            'status'              => 'required|string|max:255',
             'next_follow_up_date' => 'nullable|date|after_or_equal:today',
-            'assigned_to'         => 'nullable|exists:users,id',
+            'next_follow_up_time' => 'nullable|date_format:H:i:s,H:i',
+            'collaborators'       => 'nullable|array',
+            'collaborators.*'     => 'exists:users,id',
             'reminder_date'       => 'nullable|date',
+            'reminder_time'       => 'nullable|date_format:H:i:s,H:i',
+            'reminder_message'    => 'nullable|string|max:1000',
             'remind_via'          => 'nullable|in:assigned_user,customer,both',
         ]);
 
@@ -113,8 +142,11 @@ class FollowUpController extends Controller
             return back()->withErrors($validator)->withInput();
         }
 
-        // If the reminder date changed, reset the sent flag so it fires again
-        $reminderChanged = $followUp->reminder_date != $request->reminder_date;
+        // If the reminder date or time changed, reset the sent flag so it fires again
+        $reminderChanged = ($followUp->reminder_date != $request->reminder_date) || ($followUp->reminder_time != $request->reminder_time);
+
+        $collaborators = $request->collaborators ?? [];
+        $assignedTo = !empty($collaborators) ? $collaborators[0] : null;
 
         $followUp->update([
             'customer_id'         => $request->customer_id,
@@ -123,8 +155,12 @@ class FollowUpController extends Controller
             'notes'               => $request->notes,
             'status'              => $request->status,
             'next_follow_up_date' => $request->next_follow_up_date,
-            'assigned_to'         => $request->assigned_to,
+            'next_follow_up_time' => $request->next_follow_up_time,
+            'assigned_to'         => $assignedTo,
+            'collaborators'       => $collaborators,
             'reminder_date'       => $request->reminder_date,
+            'reminder_time'       => $request->reminder_time,
+            'reminder_message'    => $request->reminder_message,
             'remind_via'          => $request->remind_via ?? 'assigned_user',
             'reminder_sent_at'    => $reminderChanged ? null : $followUp->reminder_sent_at,
         ]);

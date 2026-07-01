@@ -7,6 +7,7 @@
     <title>@yield('title') - Smart EmCa System</title>
     <!-- Main CSS-->
     <link rel="stylesheet" type="text/css" href="{{ asset('vali-master/docs/css/main.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ asset('css/brand-overrides.css') }}">
     <!-- Font-icon css-->
     <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
     <!-- SweetAlert2 -->
@@ -38,6 +39,29 @@
         .btn-primary:hover, .btn-primary:focus {
             background-color: #7a0000;
             border-color: #7a0000;
+        }
+
+        .visit-container .form-control:focus,
+        .visit-container textarea.form-control:focus,
+        .visit-container select.form-control:focus {
+            border-color: #940000;
+            box-shadow: 0 0 0 0.2rem rgba(148, 0, 0, 0.25);
+            outline: none;
+        }
+
+        .visit-container .input-group .form-control:focus {
+            border-color: #940000;
+            box-shadow: none;
+        }
+
+        .visit-container .input-group:focus-within {
+            box-shadow: 0 0 0 0.2rem rgba(148, 0, 0, 0.25);
+            border-radius: 0.25rem;
+        }
+
+        .visit-container .input-group:focus-within .form-control,
+        .visit-container .input-group:focus-within .input-group-text {
+            border-color: #940000;
         }
         
         /* Mobile Responsiveness Improvements (Mobile First) */

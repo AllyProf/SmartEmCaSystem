@@ -1,0 +1,18 @@
+{
+    "name": "SmartEmCa Staff Sign",
+    "short_name": "Staff Sign",
+    "description": "HQ attendance sign in/out with GPS",
+    "start_url": "/staff/sign",
+    "display": "standalone",
+    "background_color": "#111111",
+    "theme_color": "#940000",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/images/background_image.jpg",
+            "sizes": "512x512",
+            "type": "image/jpeg",
+            "purpose": "any"
+        }
+    ]
+}

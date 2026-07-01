@@ -31,4 +31,62 @@ class Customer extends Model
     {
         return $this->hasMany(FollowUp::class);
     }
+
+    public static function normalizePhoneNumber(?string $phone): ?string
+    {
+        if (!$phone) {
+            return null;
+        }
+
+        $cleaned = preg_replace('/[^0-9]/', '', $phone);
+
+        if (str_starts_with($cleaned, '0') && strlen($cleaned) === 10) {
+            return '255' . substr($cleaned, 1);
+        }
+
+        if (str_starts_with($cleaned, '255')) {
+            return substr($cleaned, 0, 12);
+        }
+
+        if (strlen($cleaned) === 9) {
+            return '255' . $cleaned;
+        }
+
+        return $cleaned ?: null;
+    }
+
+    public static function findOrCreateByPhone(string $phone, array $attributes = [], ?int $createdBy = null): ?self
+    {
+        $normalized = static::normalizePhoneNumber($phone);
+
+        if (!$normalized) {
+            return null;
+        }
+
+        $customer = static::where('phone_number', $normalized)->first();
+
+        if ($customer) {
+            $updates = [];
+
+            foreach (['name', 'location', 'visiting_purpose'] as $field) {
+                if (!empty($attributes[$field])) {
+                    $updates[$field] = $attributes[$field];
+                }
+            }
+
+            if ($updates) {
+                $customer->update($updates);
+            }
+
+            return $customer;
+        }
+
+        return static::create([
+            'phone_number' => $normalized,
+            'name' => $attributes['name'] ?? null,
+            'location' => $attributes['location'] ?? null,
+            'visiting_purpose' => $attributes['visiting_purpose'] ?? null,
+            'created_by' => $createdBy,
+        ]);
+    }
 }

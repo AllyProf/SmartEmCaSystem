@@ -14,3 +14,22 @@ Schedule::command('followups:send-reminders')
     ->timezone('Africa/Dar_es_Salaam')
     ->name('send-followup-reminders')
     ->withoutOverlapping();
+
+// Schedule sending scheduled SMS every minute
+Schedule::command('sms:send-scheduled')
+    ->everyMinute()
+    ->timezone('Africa/Dar_es_Salaam')
+    ->name('send-scheduled-sms')
+    ->withoutOverlapping();
+
+Schedule::command('attendance:auto-sign-out')
+    ->dailyAt('00:05')
+    ->timezone('Africa/Dar_es_Salaam')
+    ->name('attendance-auto-sign-out')
+    ->withoutOverlapping();
+
+Schedule::command('attendance:send-reminders')
+    ->dailyAt('08:30')
+    ->timezone('Africa/Dar_es_Salaam')
+    ->name('attendance-send-reminders')
+    ->withoutOverlapping();

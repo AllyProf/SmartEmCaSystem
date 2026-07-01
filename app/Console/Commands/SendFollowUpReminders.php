@@ -21,7 +21,7 @@ class SendFollowUpReminders extends Command
         $followUps = FollowUp::with(['customer', 'assignedUser'])
             ->where('reminder_date', $today)
             ->whereNull('reminder_sent_at')
-            ->where('status', 'pending')
+            ->whereNotIn('status', ['Meeting Completed', 'Cancelled', 'completed', 'cancelled'])
             ->get();
 
         if ($followUps->isEmpty()) {
@@ -39,7 +39,13 @@ class SendFollowUpReminders extends Command
             $purpose       = $followUp->visit_purpose ?? 'General Follow-up';
             $assignedName  = $followUp->assignedUser->name ?? 'Staff';
 
-            $message = "SmartEmCa Reminder: Follow-up with {$customerName} is due on {$followUpDate}. Purpose: {$purpose}. Assigned to: {$assignedName}. - EmCa Tech";
+            if (!empty($followUp->reminder_message)) {
+                $staffMessage = "SmartEmCa: {$followUp->reminder_message} - EmCa Tech";
+                $customerMessage = "SmartEmCa: {$followUp->reminder_message} - EmCa Tech";
+            } else {
+                $staffMessage = "SmartEmCa Reminder: Follow-up with {$customerName} is due on {$followUpDate}. Purpose: {$purpose}. Assigned to: {$assignedName}. - EmCa Tech";
+                $customerMessage = "SmartEmCa: A follow-up visit from EmCa Tech is scheduled for you on {$followUpDate}. Purpose: {$purpose}.";
+            }
 
             $reminderSent = false;
 
@@ -47,7 +53,7 @@ class SendFollowUpReminders extends Command
             if (in_array($followUp->remind_via, ['assigned_user', 'both'])) {
                 $assignedPhone = $followUp->assignedUser->phone ?? null;
                 if ($assignedPhone) {
-                    $result = $smsService->sendAndLog($assignedPhone, $message, 'follow_up_reminder');
+                    $result = $smsService->sendAndLog($assignedPhone, $staffMessage, 'follow_up_reminder');
                     if ($result->status === 'sent') {
                         $reminderSent = true;
                         $this->info("  ✓ Sent to assigned user: {$assignedPhone}");
@@ -63,8 +69,7 @@ class SendFollowUpReminders extends Command
             if (in_array($followUp->remind_via, ['customer', 'both'])) {
                 $customerPhone = $followUp->customer->phone_number ?? null;
                 if ($customerPhone) {
-                    $customerMsg = "SmartEmCa: A follow-up visit from EmCa Tech is scheduled for you on {$followUpDate}. Purpose: {$purpose}.";
-                    $result = $smsService->sendAndLog($customerPhone, $customerMsg, 'follow_up_reminder');
+                    $result = $smsService->sendAndLog($customerPhone, $customerMessage, 'follow_up_reminder');
                     if ($result->status === 'sent') {
                         $reminderSent = true;
                         $this->info("  ✓ Sent to customer: {$customerPhone}");

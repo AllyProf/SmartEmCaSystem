@@ -27,6 +27,8 @@ class User extends Authenticatable
         'staff_id',
         'is_active',
         'device_id',
+        'web_device_id',
+        'sign_pin',
         'created_by',
     ];
 
@@ -37,6 +39,7 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'sign_pin',
         'remember_token',
     ];
 
@@ -98,5 +101,16 @@ class User extends Authenticatable
     public function isStaff()
     {
         return $this->role === 'staff';
+    }
+
+    public function getRoleLabelAttribute(): string
+    {
+        return match ($this->role) {
+            'super_admin' => 'Super Admin',
+            'ceo' => 'CEO',
+            'hr' => 'HR Manager',
+            'staff' => 'Staff',
+            default => ucfirst(str_replace('_', ' ', $this->role ?? '')),
+        };
     }
 }

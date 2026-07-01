@@ -14,10 +14,18 @@ class CustomerController extends Controller
     public function index()
     {
         $customers = Customer::with(['creator', 'followUps'])
-            ->orderBy('created_at', 'desc')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate(20);
 
-        return view('customers.index', compact('customers'));
+        $stats = [
+            'total' => Customer::count(),
+            'today' => Customer::where('created_at', '>=', now()->startOfDay())->count(),
+            'this_week' => Customer::where('created_at', '>=', now()->startOfWeek())->count(),
+            'this_month' => Customer::where('created_at', '>=', now()->startOfMonth())->count(),
+        ];
+
+        return view('customers.index', compact('customers', 'stats'));
     }
 
     /**

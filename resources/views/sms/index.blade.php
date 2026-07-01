@@ -10,56 +10,179 @@
 <li class="breadcrumb-item">SMS</li>
 @endsection
 
+@push('styles')
+<style>
+    @media (max-width: 767.98px) {
+        .sms-page .tile-title-w-btn {
+            flex-direction: column;
+            align-items: flex-start !important;
+        }
+
+        .sms-page .tile-title-w-btn p {
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .sms-page .tile-title-w-btn .btn {
+            width: 100%;
+        }
+
+        .sms-page .sms-filters .col-12 {
+            margin-bottom: 10px;
+        }
+
+        .sms-page .sms-table-wrapper {
+            overflow-x: visible;
+            border: none;
+        }
+
+        .sms-page .responsive-table,
+        .sms-page .responsive-table thead,
+        .sms-page .responsive-table tbody,
+        .sms-page .responsive-table th,
+        .sms-page .responsive-table td,
+        .sms-page .responsive-table tr {
+            display: block;
+        }
+
+        .sms-page .responsive-table thead tr {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+        }
+
+        .sms-page .responsive-table tbody tr {
+            border: 1px solid #dee2e6;
+            margin-bottom: 16px;
+            padding: 8px 10px 4px;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .sms-page .responsive-table tbody tr.empty-row td {
+            display: block;
+            padding: 20px 10px !important;
+            text-align: center;
+        }
+
+        .sms-page .responsive-table tbody tr.empty-row td:before {
+            display: none;
+        }
+
+        .sms-page .responsive-table td {
+            border: none;
+            border-bottom: 1px solid #eee;
+            position: relative;
+            padding: 10px 10px 10px 42% !important;
+            text-align: left !important;
+            min-height: 42px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .sms-page .responsive-table td:last-child {
+            border-bottom: 0;
+            justify-content: flex-start;
+        }
+
+        .sms-page .responsive-table td:before {
+            position: absolute;
+            left: 10px;
+            width: 38%;
+            padding-right: 8px;
+            white-space: nowrap;
+            font-weight: 600;
+            color: #666;
+            content: attr(data-label);
+            font-size: 0.8rem;
+        }
+
+        .sms-page .responsive-table td.sms-mobile-header {
+            background: #f8f9fa;
+            justify-content: center;
+            padding-left: 10px !important;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .sms-page .responsive-table td.sms-mobile-header:before {
+            display: none;
+        }
+
+        .sms-page .responsive-table td[data-label="Message"] {
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .sms-page .pagination {
+            flex-wrap: wrap;
+        }
+
+        .sms-page .pagination .page-link {
+            padding: 0.4rem 0.65rem;
+            font-size: 0.875rem;
+        }
+
+        .sms-page .btn-cancel-batch {
+            width: 100%;
+            margin-top: 8px;
+        }
+    }
+</style>
+@endpush
+
 @section('content')
-<div class="row">
+<div class="row sms-page">
     <div class="col-md-12">
         <div class="tile">
             <div class="tile-title-w-btn">
                 <h3 class="title">SMS Logs</h3>
                 <p><a class="btn btn-primary icon-btn" href="{{ route('sms.create') }}"><i class="fa fa-plus"></i>Send SMS</a></p>
             </div>
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <div class="widget-small info coloured-icon">
-                        <i class="icon fa fa-comment fa-2x"></i>
-                        <div class="info">
-                            <h4>Total SMS</h4>
-                            <p><b>{{ $stats['total'] ?? 0 }}</b></p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="widget-small success coloured-icon">
-                        <i class="icon fa fa-check fa-2x"></i>
-                        <div class="info">
-                            <h4>Sent</h4>
-                            <p><b>{{ $stats['sent'] ?? 0 }}</b></p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="widget-small danger coloured-icon">
-                        <i class="icon fa fa-times fa-2x"></i>
-                        <div class="info">
-                            <h4>Failed</h4>
-                            <p><b>{{ $stats['failed'] ?? 0 }}</b></p>
-                        </div>
-                    </div>
-                </div>
-            </div>
             <div class="tile-body">
-                <div class="row mb-3">
-                    <div class="col-md-4">
+                @if(isset($scheduledBatches) && $scheduledBatches->isNotEmpty())
+                <div class="alert alert-warning mb-4">
+                    <strong><i class="fa fa-clock-o"></i> Pending Scheduled SMS</strong>
+                    <ul class="list-unstyled mb-0 mt-2">
+                        @foreach($scheduledBatches as $batch)
+                        <li class="d-flex flex-wrap justify-content-between align-items-center border-bottom py-2">
+                            <span class="mb-2 mb-md-0">
+                                <strong>{{ $batch->total }}</strong> message(s) scheduled for
+                                <strong>{{ $batch->scheduled_at->format('M d, Y H:i') }}</strong>
+                                <span class="text-muted">· {{ Str::limit($batch->message, 50) }}</span>
+                            </span>
+                            <form action="{{ route('sms.cancel-batch') }}" method="POST" class="mb-0 cancel-batch-form">
+                                @csrf
+                                <input type="hidden" name="scheduled_at" value="{{ $batch->scheduled_at->format('Y-m-d H:i:s') }}">
+                                <input type="hidden" name="message" value="{{ $batch->message }}">
+                                <button type="button" class="btn btn-sm btn-danger btn-cancel-batch"
+                                    data-total="{{ $batch->total }}"
+                                    data-datetime="{{ $batch->scheduled_at->format('M d, Y H:i') }}">
+                                    <i class="fa fa-times"></i> Cancel Batch
+                                </button>
+                            </form>
+                        </li>
+                        @endforeach
+                    </ul>
+                </div>
+                @endif
+                <div class="row mb-3 sms-filters">
+                    <div class="col-12 col-md-4">
                         <input type="text" class="form-control" id="searchInput" placeholder="Search by phone, customer, or message...">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-12 col-md-3">
                         <select class="form-control" id="statusFilter">
                             <option value="">All Status</option>
                             <option value="sent">Sent</option>
                             <option value="failed">Failed</option>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-12 col-md-3">
                         <select class="form-control" id="typeFilter">
                             <option value="">All Types</option>
                             <option value="engagement">Engagement</option>
@@ -68,12 +191,12 @@
                             <option value="other">Other</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-12 col-md-2">
                         <button class="btn btn-secondary btn-block" id="clearFilters">Clear</button>
                     </div>
                 </div>
-                <div class="table-responsive">
-                    <table class="table table-hover table-bordered" id="smsTable">
+                <div class="table-responsive sms-table-wrapper">
+                    <table class="table table-hover table-bordered responsive-table" id="smsTable">
                         <thead>
                             <tr>
                                 <th>Phone Number</th>
@@ -82,32 +205,70 @@
                                 <th>Type</th>
                                 <th>Status</th>
                                 <th>Sent By</th>
-                                <th>Date</th>
+                                <th>Send Date</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($smsLogs as $sms)
+                            @php
+                                $displayDate = match (true) {
+                                    $sms->status === 'scheduled' && $sms->scheduled_at => $sms->scheduled_at,
+                                    $sms->status === 'cancelled' => $sms->updated_at,
+                                    (bool) $sms->sent_at => $sms->sent_at,
+                                    default => $sms->created_at,
+                                };
+                            @endphp
                             <tr>
-                                <td>{{ $sms->phone_number }}</td>
-                                <td>{{ $sms->customer->name ?? 'N/A' }}</td>
-                                <td>{{ Str::limit($sms->message, 50) }}</td>
-                                <td><span class="badge badge-info">{{ ucfirst($sms->sms_type) }}</span></td>
-                                <td>
-                                    <span class="badge badge-{{ $sms->status === 'sent' ? 'success' : 'danger' }}">{{ ucfirst($sms->status) }}</span>
+                                <td class="sms-mobile-header" data-label="Phone Number">{{ $sms->phone_number }}</td>
+                                <td data-label="Customer">{{ $sms->customer->name ?? 'N/A' }}</td>
+                                <td data-label="Message">{{ Str::limit($sms->message, 50) }}</td>
+                                <td data-label="Type"><span class="badge badge-info">{{ ucfirst($sms->sms_type) }}</span></td>
+                                <td data-label="Status">
+                                    <span class="d-none">{{ $sms->status }}</span>
+                                    @if($sms->status === 'sent')
+                                        <span class="badge badge-success">Sent</span>
+                                    @elseif($sms->status === 'failed')
+                                        <span class="badge badge-danger">Failed</span>
+                                    @elseif($sms->status === 'scheduled')
+                                        <span class="badge badge-warning">
+                                            <i class="fa fa-clock-o"></i> Scheduled
+                                        </span>
+                                    @elseif($sms->status === 'cancelled')
+                                        <span class="badge badge-dark">Cancelled</span>
+                                    @else
+                                        <span class="badge badge-secondary">{{ ucfirst($sms->status) }}</span>
+                                    @endif
                                 </td>
-                                <td>{{ $sms->sender->name ?? 'N/A' }}</td>
-                                <td>{{ $sms->created_at->format('M d, Y H:i') }}</td>
-                                <td>
-                                    @if($sms->status === 'failed')
-                                        <button class="btn btn-sm btn-info" onclick="showErrorDetails({{ $sms->id }})" title="View Error">
+                                <td data-label="Sent By">{{ $sms->sender->name ?? 'N/A' }}</td>
+                                <td data-label="Send Date" data-order="{{ $displayDate->timestamp }}">
+                                    {{ $displayDate->format('M d, Y H:i') }}
+                                    @if($sms->status === 'scheduled')
+                                        <small class="text-muted d-block">Scheduled send</small>
+                                    @elseif($sms->status === 'cancelled')
+                                        <small class="text-muted d-block">Cancelled</small>
+                                    @endif
+                                </td>
+                                <td data-label="Actions">
+                                    @if($sms->status === 'scheduled')
+                                        <form action="{{ route('sms.cancel', $sms->id) }}" method="POST" class="d-inline cancel-sms-form">
+                                            @csrf
+                                            <button type="button" class="btn btn-sm btn-danger btn-cancel-sms" title="Cancel"
+                                                data-phone="{{ $sms->phone_number }}">
+                                                <i class="fa fa-times"></i> Cancel
+                                            </button>
+                                        </form>
+                                    @elseif($sms->status === 'failed')
+                                        <button type="button" class="btn btn-sm btn-info btn-sms-error" title="View Error"
+                                            data-phone="{{ $sms->phone_number }}"
+                                            data-message="{{ e(Str::limit($sms->message, 100)) }}">
                                             <i class="fa fa-info-circle"></i> Error
                                         </button>
                                     @endif
                                 </td>
                             </tr>
                             @empty
-                            <tr>
+                            <tr class="empty-row">
                                 <td colspan="8" class="text-center">No SMS logs found. <a href="{{ route('sms.create') }}">Send one now</a></td>
                             </tr>
                             @endforelse
@@ -203,12 +364,30 @@
     var table = $('#smsTable').DataTable({
         "paging": false,
         "info": false,
+        "dom": "rt",
         "order": [[6, "desc"]], // Sort by date descending
         "columnDefs": [
             { "orderable": false, "targets": 7 } // Disable sorting on Actions column
         ]
     });
     
+    // Apply status filter from URL (after cancel redirect)
+    const urlStatus = new URLSearchParams(window.location.search).get('status');
+    if (urlStatus) {
+        $('#statusFilter').val(urlStatus);
+        table.column(4).search(urlStatus).draw();
+    }
+
+    @if(session('sms_cancelled'))
+    Swal.fire({
+        title: 'Cancelled',
+        text: @json(session('sms_cancelled')),
+        icon: 'success',
+        confirmButtonColor: '#940000',
+        confirmButtonText: 'OK'
+    });
+    @endif
+
     // Search functionality
     $('#searchInput').on('keyup', function() {
         table.search(this.value).draw();
@@ -232,29 +411,67 @@
         table.search('').columns().search('').draw();
     });
     
-    function showErrorDetails(id) {
-        // Get error details from the row
-        var row = $('#smsTable tbody tr').filter(function() {
-            return $(this).find('button[onclick*="' + id + '"]').length > 0;
+    // Cancel batch with SweetAlert
+    $(document).on('click', '.btn-cancel-batch', function() {
+        const form = $(this).closest('form');
+        const total = $(this).data('total');
+        const datetime = $(this).data('datetime');
+
+        Swal.fire({
+            title: 'Cancel Scheduled Batch?',
+            html: 'Cancel all <strong>' + total + '</strong> scheduled messages for <strong>' + datetime + '</strong>?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#940000',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, cancel batch',
+            cancelButtonText: 'No, keep scheduled'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
         });
-        
-        var phoneNumber = row.find('td:eq(0)').text().trim();
-        var message = row.find('td:eq(2)').text().trim();
-        
-        // Try to get error from API response (would need to fetch from server)
-        var errorMessage = 'Failed to send SMS. Please check the phone number format.';
-        
-        swal({
-            title: "SMS Error Details",
-            html: "<strong>Phone Number:</strong> " + phoneNumber + "<br><br>" +
-                  "<strong>Message:</strong> " + message + "<br><br>" +
-                  "<strong>Error:</strong> " + errorMessage + "<br><br>" +
-                  "<small class='text-muted'>Note: Phone numbers must be 12 digits starting with 255 (e.g., 255612345678) or 10 digits starting with 0 (e.g., 0612345678)</small>",
-            type: "error",
-            confirmButtonText: "OK",
-            width: '600px'
+    });
+
+    // Cancel single scheduled SMS with SweetAlert
+    $(document).on('click', '.btn-cancel-sms', function() {
+        const form = $(this).closest('form');
+        const phone = $(this).data('phone');
+
+        Swal.fire({
+            title: 'Cancel Scheduled SMS?',
+            text: 'Cancel the scheduled SMS to ' + phone + '?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#940000',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, cancel it',
+            cancelButtonText: 'No, keep scheduled'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
         });
-    }
+    });
+
+    // SMS error details with SweetAlert
+    $(document).on('click', '.btn-sms-error', function() {
+        const phoneNumber = $(this).data('phone');
+        const message = $(this).data('message');
+        const errorMessage = 'Failed to send SMS. Please check the phone number format.';
+
+        Swal.fire({
+            title: 'SMS Error Details',
+            html: '<strong>Phone Number:</strong> ' + phoneNumber + '<br><br>' +
+                  '<strong>Message:</strong> ' + message + '<br><br>' +
+                  '<strong>Error:</strong> ' + errorMessage + '<br><br>' +
+                  '<small class="text-muted">Note: Phone numbers must be 12 digits starting with 255 (e.g., 255612345678) or 10 digits starting with 0 (e.g., 0612345678)</small>',
+            icon: 'error',
+            confirmButtonColor: '#940000',
+            confirmButtonText: 'OK',
+            width: window.innerWidth < 768 ? '95%' : '600px'
+        });
+    });
 </script>
 @endpush
 

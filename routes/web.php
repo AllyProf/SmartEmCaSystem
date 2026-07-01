@@ -12,6 +12,21 @@ Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
+// Staff GPS Sign (attendance at HQ)
+Route::middleware(['staff.sign.nocache'])->group(function () {
+    Route::get('/staff/sign', [App\Http\Controllers\StaffSignController::class, 'show'])->name('staff.sign');
+    Route::post('/staff/sign/auth', [App\Http\Controllers\StaffSignController::class, 'authenticate'])->name('staff.sign.auth');
+    Route::post('/staff/sign/logout', [App\Http\Controllers\StaffSignController::class, 'logout'])->name('staff.sign.logout');
+    Route::middleware(['auth', 'staff.sign.verified', 'staff.sign.session'])->group(function () {
+        Route::get('/staff/sign/status', [App\Http\Controllers\StaffSignController::class, 'status'])->name('staff.sign.status');
+        Route::get('/staff/sign/reverse-geocode', [App\Http\Controllers\StaffSignController::class, 'reverseGeocode'])->name('staff.sign.reverse-geocode');
+        Route::get('/staff/sign/history', [App\Http\Controllers\StaffSignController::class, 'history'])->name('staff.sign.history');
+        Route::get('/staff/sign/replay/{attendance}', [App\Http\Controllers\StaffSignController::class, 'replay'])->name('staff.sign.replay');
+        Route::post('/staff/sign/in', [App\Http\Controllers\StaffSignController::class, 'signIn'])->name('staff.sign.in');
+        Route::post('/staff/sign/out', [App\Http\Controllers\StaffSignController::class, 'signOut'])->name('staff.sign.out');
+    });
+});
+
 // Forgot Password with OTP
 Route::get('/forgot-password', [AuthController::class, 'showForgotPasswordForm'])->name('password.request');
 Route::post('/forgot-password', [AuthController::class, 'sendOtp'])->name('password.otp.send');
@@ -33,6 +48,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sms', [SmsController::class, 'index'])->name('sms.index');
     Route::get('/sms/create', [SmsController::class, 'create'])->name('sms.create');
     Route::post('/sms', [SmsController::class, 'store'])->name('sms.store');
+    Route::post('/sms/cancel-batch', [SmsController::class, 'cancelBatch'])->name('sms.cancel-batch');
+    Route::post('/sms/{sms}/cancel', [SmsController::class, 'cancel'])->name('sms.cancel');
     Route::get('/sms/logs', [SmsController::class, 'logs'])->name('sms.logs');
     Route::get('/sms/templates', [SmsController::class, 'getTemplates'])->name('sms.templates');
 
@@ -56,8 +73,15 @@ Route::middleware(['auth'])->group(function () {
     // Attendance (CEO view)
     Route::prefix('attendance')->name('attendance.')->group(function () {
         Route::get('/', [App\Http\Controllers\AttendanceController::class, 'index'])->name('index');
-        Route::post('/settings', [App\Http\Controllers\AttendanceController::class, 'saveSettings'])->name('settings.save');
+        Route::post('/settings', [App\Http\Controllers\SystemSettingsController::class, 'update'])->name('settings.save');
     });
+
+    // System settings
+    Route::get('/settings', [App\Http\Controllers\SystemSettingsController::class, 'index'])->name('settings.index');
+    Route::post('/settings', [App\Http\Controllers\SystemSettingsController::class, 'update'])->name('settings.update');
+
+    // Reports
+    Route::get('/reports', [\App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
 });
 
 // Visitor Confirmation Routes (Semi-Protected by Staff Verify Session)

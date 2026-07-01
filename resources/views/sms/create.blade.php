@@ -11,6 +11,60 @@
 <li class="breadcrumb-item">Send SMS</li>
 @endsection
 
+@push('styles')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<style>
+    .select2-container--default .select2-selection--single {
+        height: 38px;
+        border: 1px solid #ced4da;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 38px;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 36px;
+    }
+    .select2-container--default .select2-selection--multiple {
+        border: 1px solid #ced4da;
+    }
+    .btn-group-toggle .btn {
+        padding: 8px 15px;
+        font-weight: 600;
+        border-width: 2px;
+    }
+    .btn-group-toggle .btn.active {
+        background-color: #940000;
+        border-color: #940000;
+        color: #fff;
+    }
+    .btn-outline-primary {
+        color: #940000;
+        border-color: #940000;
+    }
+    .btn-outline-primary:hover {
+        background-color: #940000;
+        border-color: #940000;
+        color: #fff;
+    }
+    /* Select2 Brand Styling */
+    .select2-container--default .select2-results__option--highlighted[aria-selected] {
+        background-color: #940000;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        background-color: #940000;
+        border-color: #7a0000;
+        color: #fff;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+        color: #fff;
+        margin-right: 5px;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+        color: #eee;
+    }
+</style>
+@endpush
+
 @section('content')
 <div class="row">
     <div class="col-md-12">
@@ -19,93 +73,121 @@
             <div class="tile-body">
                 <form action="{{ route('sms.store') }}" method="POST" id="smsForm">
                     @csrf
-                    <div class="form-group">
-                        <label class="control-label">SMS Type <span class="text-danger">*</span></label>
-                        <select class="form-control" name="sms_type" id="sms_type" required>
-                            <option value="engagement">Engagement SMS</option>
-                            <option value="holiday">Holiday SMS</option>
-                            <option value="custom">Custom SMS</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="control-label">Send To <span class="text-danger">*</span></label>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="send_to" id="send_single" value="single" checked>
-                            <label class="form-check-label" for="send_single">
-                                Single Person / Phone Number
-                            </label>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="control-label">SMS Type <span class="text-danger">*</span></label>
+                                <select class="form-control" name="sms_type" id="sms_type" required>
+                                    <option value="engagement">Engagement SMS</option>
+                                    <option value="holiday">Holiday SMS</option>
+                                    <option value="custom">Custom SMS</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="send_to" id="send_selected" value="selected">
-                            <label class="form-check-label" for="send_selected">
-                                Selected Customers
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="send_to" id="send_all" value="all">
-                            <label class="form-check-label" for="send_all">
-                                All Customers ({{ $customers->count() }} customers)
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Single SMS Fields -->
-                    <div id="single_fields">
-                        <div class="form-group">
-                            <label class="control-label">Select Customer <span class="text-muted">(Optional)</span></label>
-                            <select class="form-control" name="customer_id" id="customer_id">
-                                <option value="">-- Select Customer --</option>
-                                @foreach($customers as $customer)
-                                <option value="{{ $customer->id }}" data-phone="{{ $customer->phone_number }}" data-name="{{ $customer->name }}" {{ (isset($selectedCustomerId) && $selectedCustomerId == $customer->id) || request('customer_id') == $customer->id ? 'selected' : '' }}>
-                                    {{ $customer->name ?? 'N/A' }} - {{ $customer->phone_number }}
-                                </option>
-                                @endforeach
-                            </select>
-                            <small class="form-text text-muted">Or enter phone number manually below</small>
-                        </div>
-                        <div class="form-group">
-                            <label class="control-label">Phone Number <span class="text-danger" id="phone_required">*</span></label>
-                            <input class="form-control" type="text" name="phone_number" id="phone_number" value="{{ old('phone_number') }}" placeholder="255612345678 or 0612345678">
-                            <small class="form-text text-muted">Enter phone number with country code (e.g., 255612345678 or 0612345678). Required if no customer is selected above.</small>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="control-label">Send To <span class="text-danger">*</span></label>
+                                <div class="btn-group btn-group-toggle d-flex" data-toggle="buttons">
+                                    <label class="btn btn-outline-primary active flex-fill">
+                                        <input type="radio" name="send_to" id="send_single" value="single" checked autocomplete="off"> 
+                                        <i class="fa fa-user"></i> Single
+                                    </label>
+                                    <label class="btn btn-outline-primary flex-fill">
+                                        <input type="radio" name="send_to" id="send_selected" value="selected" autocomplete="off"> 
+                                        <i class="fa fa-users"></i> Selected
+                                    </label>
+                                    <label class="btn btn-outline-primary flex-fill">
+                                        <input type="radio" name="send_to" id="send_all" value="all" autocomplete="off"> 
+                                        <i class="fa fa-globe"></i> All
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Selected Customers Fields -->
-                    <div id="selected_fields" style="display: none;">
-                        <div class="form-group">
-                            <label class="control-label">Select Customers <span class="text-danger">*</span></label>
-                            <select class="form-control" name="selected_customers[]" id="selected_customers" multiple size="10" style="height: 200px;">
-                                @foreach($customers as $customer)
-                                <option value="{{ $customer->id }}">
-                                    {{ $customer->name ?? 'N/A' }} - {{ $customer->phone_number }}
-                                </option>
-                                @endforeach
-                            </select>
-                            <small class="form-text text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple customers. Selected: <span id="selected_count">0</span></small>
+                    <div class="row" id="recipient_row">
+                        <div class="col-md-6" id="customer_selection_col">
+                            <!-- Single SMS Fields -->
+                            <div id="single_customer_div">
+                                <div class="form-group">
+                                    <label class="control-label">Select Customer <span class="text-muted">(Optional)</span></label>
+                                    <select class="form-control select2" name="customer_id" id="customer_id">
+                                        <option value="">-- Select Customer --</option>
+                                        @foreach($customers as $customer)
+                                        <option value="{{ $customer->id }}" data-phone="{{ $customer->phone_number }}" data-name="{{ $customer->name }}" {{ (isset($selectedCustomerId) && $selectedCustomerId == $customer->id) || request('customer_id') == $customer->id ? 'selected' : '' }}>
+                                            {{ $customer->name ?? 'N/A' }} - {{ $customer->phone_number }}
+                                        </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Selected Customers Fields -->
+                            <div id="selected_customers_div" style="display: none;">
+                                <div class="form-group">
+                                    <label class="control-label">Select Customers <span class="text-danger">*</span></label>
+                                    <select class="form-control select2" name="selected_customers[]" id="selected_customers" multiple>
+                                        @foreach($customers as $customer)
+                                        <option value="{{ $customer->id }}">
+                                            {{ $customer->name ?? 'N/A' }} - {{ $customer->phone_number }}
+                                        </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6" id="phone_number_col">
+                            <div class="form-group">
+                                <label class="control-label">Phone Number <span class="text-danger" id="phone_required">*</span></label>
+                                <input class="form-control" type="text" name="phone_number" id="phone_number" value="{{ old('phone_number', '+255') }}" placeholder="+255612345678">
+                                <small class="form-text text-muted" id="phone_helper">Required if no customer selected.</small>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- All Customers Info -->
-                    <div id="all_fields" style="display: none;">
-                        <div class="alert alert-info">
-                            <i class="fa fa-info-circle"></i> This will send SMS to all <strong>{{ $customers->count() }}</strong> customers in the system.
+                    <div id="all_customers_alert" style="display: none;">
+                        <div class="alert" style="background-color: #f8f9fa; border: 1px solid #ddd;">
+                            <i class="fa fa-info-circle"></i> <span id="all_customers_alert_text">This will send SMS to all <strong>{{ $customers->count() }}</strong> customers.</span>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label class="control-label">Message <span class="text-danger">*</span></label>
                         <textarea class="form-control" name="message" id="message" rows="5" placeholder="Enter your message here..." required>{{ old('message') }}</textarea>
-                        <small class="form-text text-muted">Use {name} to personalize the message with customer name, {year} for current year</small>
+                        <small class="form-text text-muted">Use {name} for customer name, {year} for current year</small>
                     </div>
+
+                    <!-- Scheduling Options -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <div class="animated-checkbox">
+                                    <label>
+                                        <input type="checkbox" name="is_scheduled" id="is_scheduled" value="1">
+                                        <span class="label-text font-weight-bold" style="color: #940000;"><i class="fa fa-clock-o"></i> Schedule this SMS to be sent later</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6" id="schedule_time_container" style="display: none;">
+                            <div class="form-group">
+                                <label class="control-label font-weight-bold">Schedule Date & Time <span class="text-danger">*</span></label>
+                                <input class="form-control" type="datetime-local" name="scheduled_at" id="scheduled_at">
+                                <small class="form-text text-muted">Select when the SMS should be sent (Africa/Dar_es_Salaam timezone).</small>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="form-group">
-                        <button type="button" class="btn btn-info btn-sm" id="loadTemplate">Load Template</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="loadTemplate">Load Template</button>
                         <button type="button" class="btn btn-secondary btn-sm" id="clearMessage">Clear</button>
-                        <button type="button" class="btn btn-success btn-sm" id="viewAllTemplates">View All Templates</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="viewAllTemplates">View All Templates</button>
                     </div>
+
                     <div class="tile-footer">
-                        <button class="btn btn-primary" type="submit"><i class="fa fa-fw fa-lg fa-paper-plane"></i>Send SMS</button>
+                        <button class="btn btn-primary" type="submit" id="submitSmsBtn"><i class="fa fa-fw fa-lg fa-paper-plane"></i><span id="submitSmsBtnText">Send SMS</span></button>
                         <a class="btn btn-secondary" href="{{ route('sms.index') }}"><i class="fa fa-fw fa-lg fa-times-circle"></i>Cancel</a>
                     </div>
                 </form>
@@ -136,8 +218,25 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     $(document).ready(function() {
+        // Initialize Select2
+        $('.select2').select2({
+            width: '100%'
+        });
+
+        $('#customer_id').select2({
+            placeholder: "-- Select Customer --",
+            allowClear: true,
+            width: '100%'
+        });
+
+        $('#selected_customers').select2({
+            placeholder: "Select Customers",
+            width: '100%'
+        });
+
         // Initialize form state
         updateFormFields();
         
@@ -149,26 +248,33 @@
         function updateFormFields() {
             var sendTo = $('input[name="send_to"]:checked').val();
             
-            // Hide all fields
-            $('#single_fields').hide();
-            $('#selected_fields').hide();
-            $('#all_fields').hide();
+            // Default visibility
+            $('#recipient_row').show();
+            $('#single_customer_div').hide();
+            $('#selected_customers_div').hide();
+            $('#all_customers_alert').hide();
+            $('#phone_number_col').show();
+            
             $('#phone_number').removeAttr('required');
             $('#selected_customers').removeAttr('required');
-            $('#phone_number').val('');
-            $('#customer_id').val('');
             
             // Show relevant fields
             if (sendTo === 'single') {
-                $('#single_fields').show();
+                $('#single_customer_div').show();
                 $('#phone_required').show();
-                // Phone number is required only if no customer is selected
+                if (!$('#phone_number').val()) {
+                    $('#phone_number').val('+255');
+                }
             } else if (sendTo === 'selected') {
-                $('#selected_fields').show();
+                $('#selected_customers_div').show();
                 $('#selected_customers').attr('required', 'required');
+                $('#phone_number_col').hide();
             } else if (sendTo === 'all') {
-                $('#all_fields').show();
+                $('#recipient_row').hide();
+                $('#all_customers_alert').show();
             }
+
+            updateScheduleUI();
         }
 
         // Update selected count
@@ -183,6 +289,11 @@
             var phone = selectedOption.data('phone');
             if (phone) {
                 $('#phone_number').val(phone);
+            } else {
+                // Only reset to +255 if it was changed by a customer selection
+                if ($('input[name="send_to"]:checked').val() === 'single' && !$(this).val()) {
+                    $('#phone_number').val('+255');
+                }
             }
         });
 
@@ -227,6 +338,33 @@
             $('#message').val('');
         });
 
+        // Handle scheduled checkbox change
+        $('#is_scheduled').on('change', function() {
+            if ($(this).is(':checked')) {
+                $('#schedule_time_container').show();
+                $('#scheduled_at').attr('required', 'required');
+            } else {
+                $('#schedule_time_container').hide();
+                $('#scheduled_at').removeAttr('required').val('');
+            }
+            updateScheduleUI();
+        });
+
+        function updateScheduleUI() {
+            var isScheduled = $('#is_scheduled').is(':checked');
+            var totalCustomers = {{ $customers->count() }};
+
+            if (isScheduled) {
+                $('#submitSmsBtnText').text('Schedule SMS');
+                $('#submitSmsBtn i').removeClass('fa-paper-plane').addClass('fa-clock-o');
+                $('#all_customers_alert_text').html('This will <strong>schedule</strong> SMS for all <strong>' + totalCustomers + '</strong> customers.');
+            } else {
+                $('#submitSmsBtnText').text('Send SMS');
+                $('#submitSmsBtn i').removeClass('fa-clock-o').addClass('fa-paper-plane');
+                $('#all_customers_alert_text').html('This will send SMS to all <strong>' + totalCustomers + '</strong> customers.');
+            }
+        }
+
         // Form validation
         $('#smsForm').on('submit', function(e) {
             var sendTo = $('input[name="send_to"]:checked').val();
@@ -262,6 +400,22 @@
                 }
             }
             
+            // Schedule validation
+            if (isValid && $('#is_scheduled').is(':checked')) {
+                var scheduledAtVal = $('#scheduled_at').val();
+                if (!scheduledAtVal) {
+                    isValid = false;
+                    errorMessage = 'Please select a schedule date and time';
+                } else {
+                    var scheduledDate = new Date(scheduledAtVal);
+                    var now = new Date();
+                    if (scheduledDate <= now) {
+                        isValid = false;
+                        errorMessage = 'Schedule date and time must be in the future';
+                    }
+                }
+            }
+            
             if (!isValid) {
                 e.preventDefault();
                 Swal.fire({
@@ -273,17 +427,24 @@
                 return false;
             }
             
-            // Show confirmation for bulk sends
+            // Show confirmation for bulk sends/schedules
+            var isScheduled = $('#is_scheduled').is(':checked');
+            var actionVerb = isScheduled ? 'schedule' : 'send';
+            var confirmTitle = isScheduled ? 'Confirm Bulk Schedule' : 'Confirm Bulk Send';
+            var confirmYes = isScheduled ? 'Yes, Schedule' : 'Yes, Send';
+            var confirmYesAll = isScheduled ? 'Yes, Schedule All' : 'Yes, Send to All';
+
             if (sendTo === 'selected') {
                 var count = $('#selected_customers').val().length;
                 if (count > 5) {
                     e.preventDefault();
                     Swal.fire({
-                        title: "Confirm Bulk Send",
-                        text: "You are about to send SMS to " + count + " customers. Continue?",
+                        title: confirmTitle,
+                        text: "You are about to " + actionVerb + " SMS to " + count + " customers. Continue?",
                         icon: "warning",
                         showCancelButton: true,
-                        confirmButtonText: "Yes, Send",
+                        confirmButtonColor: '#940000',
+                        confirmButtonText: confirmYes,
                         cancelButtonText: "Cancel"
                     }).then(function(result) {
                         if (result.isConfirmed) {
@@ -297,11 +458,12 @@
                 if (totalCustomers > 5) {
                     e.preventDefault();
                     Swal.fire({
-                        title: "Confirm Bulk Send",
-                        text: "You are about to send SMS to ALL " + totalCustomers + " customers. Continue?",
+                        title: confirmTitle,
+                        text: "You are about to " + actionVerb + " SMS to ALL " + totalCustomers + " customers. Continue?",
                         icon: "warning",
                         showCancelButton: true,
-                        confirmButtonText: "Yes, Send to All",
+                        confirmButtonColor: '#940000',
+                        confirmButtonText: confirmYesAll,
                         cancelButtonText: "Cancel"
                     }).then(function(result) {
                         if (result.isConfirmed) {

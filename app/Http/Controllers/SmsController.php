@@ -22,19 +22,28 @@ class SmsController extends Controller
      */
     public function index()
     {
-        $customers = Customer::orderBy('name', 'asc')->get();
+        $customers = Customer::orderBy('created_at', 'desc')->get();
         $smsLogs = SmsLog::with(['customer', 'sender'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(50); // Increased to 50 per page
+            ->orderByRaw("CASE WHEN status = 'scheduled' AND scheduled_at IS NOT NULL THEN scheduled_at WHEN status = 'cancelled' THEN updated_at WHEN sent_at IS NOT NULL THEN sent_at ELSE created_at END DESC")
+            ->paginate(50);
 
-        // Get statistics
-        $stats = [
-            'total' => SmsLog::count(),
-            'sent' => SmsLog::where('status', 'sent')->count(),
-            'failed' => SmsLog::where('status', 'failed')->count(),
-        ];
+        $scheduledBatches = SmsLog::where('status', 'scheduled')
+            ->whereNotNull('scheduled_at')
+            ->get()
+            ->groupBy(fn ($sms) => $sms->scheduled_at->format('Y-m-d H:i:s') . '::' . md5($sms->message))
+            ->map(function ($group) {
+                $first = $group->first();
 
-        return view('sms.index', compact('customers', 'smsLogs', 'stats'));
+                return (object) [
+                    'scheduled_at' => $first->scheduled_at,
+                    'message' => $first->message,
+                    'total' => $group->count(),
+                ];
+            })
+            ->sortByDesc(fn ($batch) => $batch->scheduled_at->timestamp)
+            ->values();
+
+        return view('sms.index', compact('customers', 'smsLogs', 'scheduledBatches'));
     }
 
     /**
@@ -42,7 +51,7 @@ class SmsController extends Controller
      */
     public function create(Request $request)
     {
-        $customers = Customer::orderBy('name', 'asc')->get();
+        $customers = Customer::orderBy('created_at', 'desc')->get();
         $selectedCustomerId = $request->get('customer_id');
         return view('sms.create', compact('customers', 'selectedCustomerId'));
     }
@@ -99,6 +108,8 @@ class SmsController extends Controller
             'message' => 'required|string|min:1|max:1000',
             'sms_type' => 'required|string',
             'customer_id' => 'nullable|exists:customers,id',
+            'is_scheduled' => 'nullable|boolean',
+            'scheduled_at' => 'required_if:is_scheduled,1|nullable|date',
         ]);
 
         if ($validator->fails()) {
@@ -108,8 +119,12 @@ class SmsController extends Controller
         $message = $request->message;
         $smsType = $request->sms_type;
         $sendTo = $request->send_to;
+        $isScheduled = $request->input('is_scheduled') == '1';
+        $scheduledAt = $isScheduled ? $request->input('scheduled_at') : null;
+        
         $successCount = 0;
         $failCount = 0;
+        $scheduledCount = 0;
         $errors = [];
 
         try {
@@ -129,23 +144,45 @@ class SmsController extends Controller
                             $message = str_replace('{name}', $customer->name, $message);
                         }
                     }
+                } elseif ($phoneNumber) {
+                    $customer = Customer::findOrCreateByPhone($phoneNumber, [], auth()->id());
+                    if ($customer) {
+                        $customerId = $customer->id;
+                        $phoneNumber = $customer->phone_number;
+                        if ($customer->name) {
+                            $message = str_replace('{name}', $customer->name, $message);
+                        }
+                    }
                 }
 
-                $smsLog = $this->smsService->sendAndLog(
-                    $phoneNumber,
-                    $message,
-                    $smsType,
-                    $customerId,
-                    auth()->id()
-                );
-
-                if ($smsLog->status === 'sent') {
-                    $successCount = 1;
+                if ($isScheduled) {
+                    $smsLog = SmsLog::create([
+                        'customer_id' => $customerId,
+                        'phone_number' => $phoneNumber,
+                        'message' => $message,
+                        'sms_type' => $smsType,
+                        'status' => 'scheduled',
+                        'scheduled_at' => $scheduledAt,
+                        'sent_by' => auth()->id(),
+                    ]);
+                    $scheduledCount = 1;
                 } else {
-                    $failCount = 1;
-                    $apiResponse = json_decode($smsLog->api_response, true);
-                    if (isset($apiResponse['response_data']['messages'][0]['status']['description'])) {
-                        $errors[] = $apiResponse['response_data']['messages'][0]['status']['description'];
+                    $smsLog = $this->smsService->sendAndLog(
+                        $phoneNumber,
+                        $message,
+                        $smsType,
+                        $customerId,
+                        auth()->id()
+                    );
+
+                    if ($smsLog->status === 'sent') {
+                        $successCount = 1;
+                    } else {
+                        $failCount = 1;
+                        $apiResponse = json_decode($smsLog->api_response, true);
+                        if (isset($apiResponse['response_data']['messages'][0]['status']['description'])) {
+                            $errors[] = $apiResponse['response_data']['messages'][0]['status']['description'];
+                        }
                     }
                 }
             } elseif ($sendTo === 'selected') {
@@ -168,21 +205,34 @@ class SmsController extends Controller
                         $personalizedMessage = str_replace('{name}', $customer->name, $personalizedMessage);
                     }
 
-                    $smsLog = $this->smsService->sendAndLog(
-                        $customer->phone_number,
-                        $personalizedMessage,
-                        $smsType,
-                        $customer->id,
-                        auth()->id()
-                    );
-
-                    if ($smsLog->status === 'sent') {
-                        $successCount++;
+                    if ($isScheduled) {
+                        SmsLog::create([
+                            'customer_id' => $customer->id,
+                            'phone_number' => $customer->phone_number,
+                            'message' => $personalizedMessage,
+                            'sms_type' => $smsType,
+                            'status' => 'scheduled',
+                            'scheduled_at' => $scheduledAt,
+                            'sent_by' => auth()->id(),
+                        ]);
+                        $scheduledCount++;
                     } else {
-                        $failCount++;
-                        $apiResponse = json_decode($smsLog->api_response, true);
-                        if (isset($apiResponse['response_data']['messages'][0]['status']['description'])) {
-                            $errors[] = $customer->phone_number . ': ' . $apiResponse['response_data']['messages'][0]['status']['description'];
+                        $smsLog = $this->smsService->sendAndLog(
+                            $customer->phone_number,
+                            $personalizedMessage,
+                            $smsType,
+                            $customer->id,
+                            auth()->id()
+                        );
+
+                        if ($smsLog->status === 'sent') {
+                            $successCount++;
+                        } else {
+                            $failCount++;
+                            $apiResponse = json_decode($smsLog->api_response, true);
+                            if (isset($apiResponse['response_data']['messages'][0]['status']['description'])) {
+                                $errors[] = $customer->phone_number . ': ' . $apiResponse['response_data']['messages'][0]['status']['description'];
+                            }
                         }
                     }
                 }
@@ -200,24 +250,40 @@ class SmsController extends Controller
                         $personalizedMessage = str_replace('{name}', $customer->name, $personalizedMessage);
                     }
 
-                    $smsLog = $this->smsService->sendAndLog(
-                        $customer->phone_number,
-                        $personalizedMessage,
-                        $smsType,
-                        $customer->id,
-                        auth()->id()
-                    );
-
-                    if ($smsLog->status === 'sent') {
-                        $successCount++;
+                    if ($isScheduled) {
+                        SmsLog::create([
+                            'customer_id' => $customer->id,
+                            'phone_number' => $customer->phone_number,
+                            'message' => $personalizedMessage,
+                            'sms_type' => $smsType,
+                            'status' => 'scheduled',
+                            'scheduled_at' => $scheduledAt,
+                            'sent_by' => auth()->id(),
+                        ]);
+                        $scheduledCount++;
                     } else {
-                        $failCount++;
+                        $smsLog = $this->smsService->sendAndLog(
+                            $customer->phone_number,
+                            $personalizedMessage,
+                            $smsType,
+                            $customer->id,
+                            auth()->id()
+                        );
+
+                        if ($smsLog->status === 'sent') {
+                            $successCount++;
+                        } else {
+                            $failCount++;
+                        }
                     }
                 }
             }
 
             // Return success message
-            if ($successCount > 0) {
+            if ($isScheduled && $scheduledCount > 0) {
+                $formattedTime = \Carbon\Carbon::parse($scheduledAt)->format('M d, Y H:i');
+                return redirect()->route('sms.index')->with('success', "SMS scheduled successfully! Total scheduled: {$scheduledCount} for {$formattedTime}");
+            } elseif ($successCount > 0) {
                 $message = "SMS sent successfully! Sent: {$successCount}";
                 if ($failCount > 0) {
                     $message .= ", Failed: {$failCount}";
@@ -234,6 +300,43 @@ class SmsController extends Controller
             \Log::error('SMS Controller Error: ' . $e->getMessage());
             return back()->with('error', 'An error occurred: ' . $e->getMessage())->withInput();
         }
+    }
+
+    public function cancel(SmsLog $sms)
+    {
+        if ($sms->status !== 'scheduled') {
+            return back()->with('error', 'Only scheduled SMS can be cancelled.');
+        }
+
+        $sms->update(['status' => 'cancelled']);
+
+        return redirect()->route('sms.index', ['status' => 'cancelled'])
+            ->with('sms_cancelled', 'SMS cancelled successfully.');
+    }
+
+    public function cancelBatch(Request $request)
+    {
+        $request->validate([
+            'scheduled_at' => 'required|date',
+            'message' => 'required|string',
+        ]);
+
+        $scheduledAt = \Carbon\Carbon::parse($request->scheduled_at);
+
+        $count = SmsLog::where('status', 'scheduled')
+            ->where('message', $request->message)
+            ->whereBetween('scheduled_at', [
+                $scheduledAt->copy()->startOfSecond(),
+                $scheduledAt->copy()->endOfSecond(),
+            ])
+            ->update(['status' => 'cancelled']);
+
+        if ($count === 0) {
+            return back()->with('error', 'No scheduled SMS found for this batch.');
+        }
+
+        return redirect()->route('sms.index', ['status' => 'cancelled'])
+            ->with('sms_cancelled', "{$count} SMS messages cancelled.");
     }
 
     /**
