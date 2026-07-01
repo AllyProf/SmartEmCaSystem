@@ -211,7 +211,7 @@
                 <td data-label="Name"><input type="text" name="attendees[${idx}][name]" class="form-control" required placeholder="Name"></td>
                 <td data-label="Institution"><input type="text" name="attendees[${idx}][institution]" class="form-control" placeholder="Institution"></td>
                 <td data-label="Position"><input type="text" name="attendees[${idx}][position]" class="form-control" placeholder="Position"></td>
-                <td data-label="Phone"><input type="text" name="attendees[${idx}][phone]" class="form-control" value="+255" placeholder="Phone"></td>
+                <td data-label="Phone"><input type="tel" name="attendees[${idx}][phone]" class="form-control" required placeholder="e.g. 0712 345 678"></td>
                 <td data-label="Email"><input type="email" name="attendees[${idx}][email]" class="form-control" placeholder="Email (Optional)"></td>
                 <td data-label="Signature" class="text-center">
                     <button type="button" class="btn btn-sm btn-outline-primary btn-block shadow-sm py-1" id="btn_sign_${idx}" onclick="openSignatureModal(${idx})" style="font-size: 11px;">
@@ -292,6 +292,25 @@
                 icon: 'warning',
                 title: 'Missing Signatures',
                 text: 'Please ensure all attendees have signed.',
+                confirmButtonColor: '#940000'
+            });
+            e.preventDefault();
+            return false;
+        }
+
+        let missingPhone = false;
+        $('input[name$="[phone]"]').each(function() {
+            const digits = ($(this).val() || '').replace(/\D/g, '');
+            if (digits.length < 9) {
+                missingPhone = true;
+            }
+        });
+
+        if (missingPhone) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Phone Required',
+                text: 'Each attendee needs a valid phone number to be added as a customer.',
                 confirmButtonColor: '#940000'
             });
             e.preventDefault();

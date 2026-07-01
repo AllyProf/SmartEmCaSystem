@@ -51,6 +51,63 @@ class SystemEnhancementsTest extends TestCase
     }
 
     /** @test */
+    public function group_visit_attendees_are_registered_as_customers()
+    {
+        $staff = User::create([
+            'name' => 'Staff Member',
+            'email' => 'staff@emca.tech',
+            'phone' => '0712345678',
+            'password' => bcrypt('password'),
+            'role' => 'staff',
+            'is_active' => true,
+        ]);
+
+        $signature = 'data:image/png;base64,' . base64_encode(base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+        ));
+
+        $response = $this->withSession(['verified_staff_email' => 'staff@emca.tech'])->post(route('visits.store'), [
+            'type' => 'group',
+            'subject' => 'ICT Training',
+            'attendees' => [
+                [
+                    'name' => 'Alice Group',
+                    'institution' => 'Kilimanjaro School',
+                    'position' => 'Teacher',
+                    'phone' => '0711223344',
+                    'email' => 'alice@example.com',
+                    'signature' => $signature,
+                ],
+                [
+                    'name' => 'Bob Group',
+                    'institution' => 'Moshi College',
+                    'position' => 'Principal',
+                    'phone' => '0755667788',
+                    'signature' => $signature,
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('visits.success'));
+
+        $this->assertDatabaseHas('customers', [
+            'name' => 'Alice Group',
+            'phone_number' => '255711223344',
+            'location' => 'Kilimanjaro School',
+            'visiting_purpose' => 'ICT Training',
+            'created_by' => $staff->id,
+        ]);
+
+        $this->assertDatabaseHas('customers', [
+            'name' => 'Bob Group',
+            'phone_number' => '255755667788',
+            'location' => 'Moshi College',
+            'visiting_purpose' => 'ICT Training',
+            'created_by' => $staff->id,
+        ]);
+    }
+
+    /** @test */
     public function sms_scheduling_stores_scheduled_log()
     {
         $admin = User::create([

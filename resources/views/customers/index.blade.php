@@ -73,11 +73,16 @@
                         <tbody>
                             @forelse($customers as $customer)
                             <tr>
-                                <td>{{ $customer->name ?? 'N/A' }}</td>
+                                <td data-order="{{ $customer->updated_at->timestamp }}">
+                                    {{ $customer->name ?? 'N/A' }}
+                                    @if($customer->created_at->isToday())
+                                        <span class="badge badge-success ml-1">New</span>
+                                    @endif
+                                </td>
                                 <td>{{ $customer->phone_number }}</td>
                                 <td>{{ $customer->location ?? 'N/A' }}</td>
                                 <td>{{ Str::limit($customer->visiting_purpose, 50) ?? 'N/A' }}</td>
-                                <td data-order="{{ $customer->created_at->timestamp }}">{{ $customer->created_at->format('M d, Y') }}</td>
+                                <td data-order="{{ $customer->updated_at->timestamp }}">{{ $customer->created_at->format('M d, Y') }}</td>
                                 <td>
                                     <a href="{{ route('customers.show', $customer->id) }}" class="btn btn-sm btn-info"><i class="fa fa-eye"></i></a>
                                     <a href="{{ route('customers.edit', $customer->id) }}" class="btn btn-sm btn-primary"><i class="fa fa-edit"></i></a>
@@ -185,7 +190,7 @@
     $('#customersTable').DataTable({
         "paging": false,
         "info": false,
-        "order": [[4, "desc"]]
+        "order": [[0, "desc"]]
     });
 </script>
 @endpush

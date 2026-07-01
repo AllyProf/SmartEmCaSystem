@@ -31,7 +31,7 @@ class DashboardController extends Controller
             'total_customers' => Customer::count(),
             'total_sms_sent' => SmsLog::where('status', 'sent')->count(),
             'pending_follow_ups' => FollowUp::where('status', 'pending')->count(),
-            'recent_customers' => Customer::orderBy('created_at', 'desc')->limit(5)->get(),
+            'recent_customers' => Customer::orderByDesc('updated_at')->limit(5)->get(),
             'recent_sms' => SmsLog::with('customer')->orderBy('created_at', 'desc')->limit(5)->get(),
             'upcoming_follow_ups' => FollowUp::with('customer')
                 ->where('status', 'pending')

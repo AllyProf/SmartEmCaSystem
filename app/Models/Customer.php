@@ -45,14 +45,14 @@ class Customer extends Model
         }
 
         if (str_starts_with($cleaned, '255')) {
-            return substr($cleaned, 0, 12);
+            $normalized = substr($cleaned, 0, 12);
+        } elseif (strlen($cleaned) === 9) {
+            $normalized = '255' . $cleaned;
+        } else {
+            $normalized = $cleaned ?: null;
         }
 
-        if (strlen($cleaned) === 9) {
-            return '255' . $cleaned;
-        }
-
-        return $cleaned ?: null;
+        return ($normalized && strlen($normalized) >= 12) ? $normalized : null;
     }
 
     public static function findOrCreateByPhone(string $phone, array $attributes = [], ?int $createdBy = null): ?self

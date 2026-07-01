@@ -152,6 +152,7 @@ class VisitorController extends Controller
                 'location' => $request->location,
                 'visiting_purpose' => $request->purpose,
             ], $staff?->id);
+            $customer?->touch();
             $customerId = $customer?->id;
 
             // SEND SMS TO CUSTOMER
@@ -166,13 +167,22 @@ class VisitorController extends Controller
             }
 
         } elseif ($request->type === 'group') {
-            $data = $request->validate([
+            $request->validate([
                 'subject' => 'required|string',
-                'attendees' => 'required|array',
+                'attendees' => 'required|array|min:1',
                 'attendees.*.name' => 'required|string',
-                'attendees.*.phone' => 'nullable|string',
+                'attendees.*.phone' => 'required|string|min:9',
+                'attendees.*.signature' => 'required|string',
             ]);
-            
+
+            foreach ($request->attendees as $index => $attendee) {
+                if (!Customer::normalizePhoneNumber($attendee['phone'] ?? null)) {
+                    return back()
+                        ->withErrors(["attendees.{$index}.phone" => 'Enter a valid phone number for each attendee.'])
+                        ->withInput();
+                }
+            }
+
             $visit = VisitConfirmation::create([
                 'type' => 'group',
                 'subject' => $request->subject,
@@ -181,35 +191,28 @@ class VisitorController extends Controller
             ]);
 
             foreach ($request->attendees as $attendee) {
-                $sigPath = null;
-                $customer = null;
-                $customerId = null;
-                if (isset($attendee['signature']) && $attendee['signature']) {
-                     $sigPath = $this->saveSignature($attendee['signature'], 'signatures/attendees');
-                }
+                $normalizedPhone = Customer::normalizePhoneNumber($attendee['phone']);
+
+                $sigPath = $this->saveSignature($attendee['signature'], 'signatures/attendees');
 
                 $visit->attendees()->create([
                     'name' => $attendee['name'],
                     'institution' => $attendee['institution'] ?? null,
                     'position' => $attendee['position'] ?? null,
-                    'phone' => $attendee['phone'] ?? null,
+                    'phone' => $normalizedPhone,
                     'email' => $attendee['email'] ?? null,
                     'signature_path' => $sigPath,
                 ]);
 
-                // Create or update Customer record
-                if (!empty($attendee['phone'])) {
-                    $customer = Customer::findOrCreateByPhone($attendee['phone'], [
-                        'name' => $attendee['name'],
-                        'location' => $attendee['institution'] ?? null,
-                        'visiting_purpose' => $request->subject ?? 'Group Visit Attendee',
-                    ], $staff?->id);
-                    $customerId = $customer?->id;
-                }
+                $customer = Customer::findOrCreateByPhone($attendee['phone'], [
+                    'name' => $attendee['name'],
+                    'location' => $attendee['institution'] ?? null,
+                    'visiting_purpose' => $request->subject,
+                ], $staff?->id);
 
-                // SEND SMS TO EACH ATTENDEE
-                if (!empty($attendee['phone']) && $customer) {
-                    $this->smsService->sendAndLog($customer->phone_number, $smsBody, 'group_visit', $customerId, $staff ? $staff->id : null);
+                if ($customer) {
+                    $customer->touch();
+                    $this->smsService->sendAndLog($customer->phone_number, $smsBody, 'group_visit', $customer->id, $staff ? $staff->id : null);
                 }
             }
 
