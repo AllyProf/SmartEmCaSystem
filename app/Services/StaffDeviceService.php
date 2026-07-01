@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use Illuminate\Http\Request;
 
 class StaffDeviceService
 {
@@ -48,6 +49,36 @@ class StaffDeviceService
             $user->web_device_id = null;
         }
         $user->save();
+    }
+
+    /**
+     * Staff sign on a phone browser should use the mobile device slot, not the desktop web slot.
+     */
+    public function resolveStaffSignPlatform(Request $request): string
+    {
+        return $this->isMobileUserAgent($request->userAgent()) ? self::PLATFORM_MOBILE : self::PLATFORM_WEB;
+    }
+
+    public function isMobileUserAgent(?string $userAgent): bool
+    {
+        $ua = strtolower((string) $userAgent);
+
+        if ($ua === '') {
+            return false;
+        }
+
+        $mobileHints = [
+            'iphone', 'ipod', 'ipad', 'android', 'mobile', 'webos', 'blackberry',
+            'opera mini', 'iemobile', 'windows phone', 'silk/',
+        ];
+
+        foreach ($mobileHints as $hint) {
+            if (str_contains($ua, $hint)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function columnForPlatform(string $platform): string

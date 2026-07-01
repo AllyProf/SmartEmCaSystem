@@ -135,7 +135,8 @@ class StaffSignController extends Controller
             return $this->rejectStaffSignAuth($request, 'Your account is deactivated.');
         }
 
-        $deviceError = $this->devices->assertDevice($user, $deviceId, true, StaffDeviceService::PLATFORM_WEB);
+        $platform = $this->devices->resolveStaffSignPlatform($request);
+        $deviceError = $this->devices->assertDevice($user, $deviceId, true, $platform);
         if ($deviceError) {
             return $this->rejectStaffSignAuth($request, $deviceError);
         }
@@ -258,7 +259,8 @@ class StaffSignController extends Controller
     {
         $user = $this->freshUser();
 
-        $deviceError = $this->devices->assertDevice($user, $request->input('device_id'), true, StaffDeviceService::PLATFORM_WEB);
+        $platform = $this->devices->resolveStaffSignPlatform($request);
+        $deviceError = $this->devices->assertDevice($user, $request->input('device_id'), true, $platform);
         if ($deviceError) {
             return response()->json(['success' => false, 'message' => $deviceError], 403);
         }
@@ -344,7 +346,8 @@ class StaffSignController extends Controller
     {
         $user = $this->freshUser();
 
-        $deviceError = $this->devices->assertDevice($user, $request->input('device_id'), true, StaffDeviceService::PLATFORM_WEB);
+        $platform = $this->devices->resolveStaffSignPlatform($request);
+        $deviceError = $this->devices->assertDevice($user, $request->input('device_id'), true, $platform);
         if ($deviceError) {
             return response()->json(['success' => false, 'message' => $deviceError], 403);
         }
