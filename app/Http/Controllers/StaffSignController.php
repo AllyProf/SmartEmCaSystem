@@ -355,7 +355,15 @@ class StaffSignController extends Controller
         ]);
 
         if ($attendance->is_late) {
-            $this->notifications->notifyLateSignIn($user, $attendance);
+            try {
+                $this->notifications->notifyLateSignIn($user, $attendance);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Late comer notification failed', [
+                    'user_id' => $user->id,
+                    'attendance_id' => $attendance->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return response()->json([

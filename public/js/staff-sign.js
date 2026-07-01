@@ -251,7 +251,10 @@
             etaText.style.display = 'none';
         }
 
-        if (signBtn) signBtn.disabled = !isAuthenticated || !isInside;
+        if (signBtn) {
+            const signInBlocked = !isSignedIn && mapConfig.block_sign_in_non_working_days && mapConfig.is_non_working_day;
+            signBtn.disabled = signInBlocked || !isAuthenticated || !isInside;
+        }
 
         if (hqCircle) {
             hqCircle.setStyle({
@@ -862,7 +865,12 @@
         const banner = document.getElementById('nonWorkingBanner');
         if (banner) {
             banner.style.display = 'block';
-            banner.textContent = mapConfig.is_holiday ? 'Today is a public holiday.' : 'Today is a weekend.';
+            const dayLabel = mapConfig.is_holiday ? 'public holiday' : 'weekend';
+            if (mapConfig.block_sign_in_non_working_days && !isSignedIn) {
+                banner.textContent = `Sign-in blocked today (${dayLabel}).`;
+            } else {
+                banner.textContent = mapConfig.is_holiday ? 'Today is a public holiday.' : 'Today is a weekend.';
+            }
         }
     }
 

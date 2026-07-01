@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -52,6 +53,87 @@ class AttendanceSettingService
         return $this->get('expected_departure_time', '17:00:00');
     }
 
+    public function lateGraceMinutes(): int
+    {
+        return max(0, (int) $this->get('late_grace_minutes', 10));
+    }
+
+    public function blockSignInOnNonWorkingDays(): bool
+    {
+        return filter_var($this->get('block_sign_in_non_working_days', '0'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function monthlyAttendanceSmsEnabled(): bool
+    {
+        return $this->weeklyAttendanceSmsEnabled();
+    }
+
+    public function weeklyAttendanceSmsEnabled(): bool
+    {
+        return filter_var($this->get('weekly_attendance_sms_enabled', '1'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function weeklyAttendanceStaffSmsEnabled(): bool
+    {
+        return filter_var($this->get('weekly_attendance_staff_sms_enabled', '1'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function weeklyAttendanceCeoSmsEnabled(): bool
+    {
+        return filter_var($this->get('weekly_attendance_ceo_sms_enabled', '1'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function weeklySummaryDay(): int
+    {
+        $day = (int) $this->get('weekly_summary_day', 5);
+
+        return ($day >= 0 && $day <= 6) ? $day : 5;
+    }
+
+    public function weeklySummaryTime(): string
+    {
+        $time = (string) $this->get('weekly_summary_time', '18:00:00');
+
+        return preg_match('/^\d{2}:\d{2}/', $time) ? $time : '18:00:00';
+    }
+
+    public function weeklyAttendanceStaffSmsTemplate(): string
+    {
+        return (string) $this->get(
+            'weekly_attendance_staff_sms_template',
+            $this->get(
+                'monthly_attendance_sms_template',
+                'Hi {name}, week {week}: {days_present} days, {late_count} late, {forgot_sign_out_count} forgot sign-out. — {hq_name}'
+            )
+        );
+    }
+
+    public function weeklyAttendanceCeoSmsTemplate(): string
+    {
+        return (string) $this->get(
+            'weekly_attendance_ceo_sms_template',
+            'Week {week} — {staff_count} staff: {total_present} attendances, {total_late} late, {total_forgot} forgot sign-out. — {hq_name}'
+        );
+    }
+
+    public function monthlyAttendanceSmsTemplate(): string
+    {
+        return $this->weeklyAttendanceStaffSmsTemplate();
+    }
+
+    public function scheduledSmsConfirmationEnabled(): bool
+    {
+        return filter_var($this->get('scheduled_sms_confirmation_enabled', '1'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function scheduledSmsConfirmationTemplate(): string
+    {
+        return (string) $this->get(
+            'scheduled_sms_confirmation_template',
+            'Hi {name}, your scheduled SMS ({total} recipients) for {scheduled_time} is complete. Sent: {sent}, Failed: {failed}.'
+        );
+    }
+
     public function signReminderTime(): string
     {
         return $this->get('sign_reminder_time', '08:30:00');
@@ -73,6 +155,32 @@ class AttendanceSettingService
     public function lateComerSmsEnabled(): bool
     {
         return filter_var($this->get('late_comer_sms_enabled', '1'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function autoSignOutEnabled(): bool
+    {
+        return filter_var($this->get('auto_sign_out_enabled', '1'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function forgotSignOutSmsEnabled(): bool
+    {
+        return filter_var($this->get('forgot_sign_out_sms_enabled', '1'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function forgotSignOutStaffSmsTemplate(): string
+    {
+        return (string) $this->get(
+            'forgot_sign_out_staff_sms_template',
+            'Hi {name}, auto sign-out at {expected_departure} on {date} ({hq_name}). Today is closed. Sign in tomorrow. See your CEO for further action.'
+        );
+    }
+
+    public function forgotSignOutManagerSmsTemplate(): string
+    {
+        return (string) $this->get(
+            'forgot_sign_out_manager_sms_template',
+            'Alert: {name} ({staff_id}) forgot sign-out. Auto signed out {time}, {date} at {hq_name}.'
+        );
     }
 
     public function lateComerSmsTemplate(): string
@@ -139,7 +247,15 @@ class AttendanceSettingService
 
         $phones = array_merge($phones, $this->lateComerExtraPhones());
 
-        return array_values(array_unique(array_filter($phones)));
+        $normalized = [];
+        foreach ($phones as $phone) {
+            $formatted = Customer::normalizePhoneNumber($phone);
+            if ($formatted) {
+                $normalized[] = $formatted;
+            }
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     public function sessionTimeoutMinutes(): int
@@ -191,6 +307,8 @@ class AttendanceSettingService
             'hq_name' => $this->hqName(),
             'expected_arrival' => substr($this->expectedArrivalTime(), 0, 5),
             'expected_departure' => substr($this->expectedDepartureTime(), 0, 5),
+            'late_grace_minutes' => $this->lateGraceMinutes(),
+            'block_sign_in_non_working_days' => $this->blockSignInOnNonWorkingDays(),
             'session_timeout_minutes' => $this->sessionTimeoutMinutes(),
             'is_non_working_day' => $this->isNonWorkingDay(),
             'is_weekend' => $this->isWeekend(),

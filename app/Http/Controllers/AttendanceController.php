@@ -6,6 +6,7 @@ use App\Models\Setting;
 use App\Models\StaffAttendance;
 use App\Models\User;
 use App\Services\AttendanceGeofenceService;
+use App\Services\AttendanceRulesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,8 @@ class AttendanceController extends Controller
 
         $attendances = $query->orderBy('signed_in_at', 'desc')->get();
 
+        $rules = app(AttendanceRulesService::class);
+
         // Get Settings
         $expectedIn = Setting::where('key', 'expected_arrival_time')->first();
         $expectedInTime = $expectedIn ? $expectedIn->value : '08:00:00';
@@ -44,8 +47,7 @@ class AttendanceController extends Controller
         $filteredResults = [];
         
         foreach ($attendances as $att) {
-            $signInTime = Carbon::parse($att->signed_in_at)->format('H:i:s');
-            $att->is_late = $signInTime > $expectedInTime;
+            $att->is_late = $rules->isLate(Carbon::parse($att->signed_in_at));
             
             // Check Overdue (Not signed out and past expected departure)
             $att->is_overdue = false;
@@ -56,6 +58,8 @@ class AttendanceController extends Controller
                     $att->is_overdue = true;
                 }
             }
+
+            $att->is_forgot_sign_out = (bool) $att->auto_signed_out;
 
             // Working Hours Calculation
             if ($att->signed_out_at) {
@@ -68,6 +72,7 @@ class AttendanceController extends Controller
             // Apply Status Filters
             if ($statusFilter === 'late' && !$att->is_late) continue;
             if ($statusFilter === 'overdue' && !$att->is_overdue) continue;
+            if ($statusFilter === 'forgot' && !$att->is_forgot_sign_out) continue;
 
             $filteredResults[] = $att;
         }
@@ -101,6 +106,8 @@ class AttendanceController extends Controller
                     'is_late' => (bool) $att->is_late,
                     'inside_hq' => (bool) $att->location_verified_in,
                     'still_working' => !$att->signed_out_at,
+                    'auto_signed_out' => (bool) $att->auto_signed_out,
+                    'forgot_sign_out' => (bool) $att->auto_signed_out,
                     'distance_m' => (int) round($geofence->distanceFromHq($lat, $lng)),
                     'photo_url' => $att->photoInUrl(),
                     'gps_flagged' => (bool) $att->gps_flagged_in,

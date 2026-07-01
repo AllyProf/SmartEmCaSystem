@@ -294,6 +294,7 @@
                             <option value="">All Status</option>
                             <option value="late" {{ $statusFilter == 'late' ? 'selected' : '' }}>Late Comers</option>
                             <option value="overdue" {{ $statusFilter == 'overdue' ? 'selected' : '' }}>Overdue Logout</option>
+                            <option value="forgot" {{ $statusFilter == 'forgot' ? 'selected' : '' }}>Auto Sign-Out (Forgot)</option>
                         </select>
                         @if($filterType == 'daily')
                             <input type="date" name="date" class="form-control form-control-sm mr-2" value="{{ $date }}" onchange="this.form.submit()">
@@ -332,6 +333,9 @@
                                         <span class="badge badge-pill badge-dark px-3">
                                             <i class="fa fa-sign-out"></i> {{ \Carbon\Carbon::parse($log->signed_out_at)->format('h:i A') }}
                                         </span>
+                                        @if($log->is_forgot_sign_out)
+                                            <br><span class="badge badge-secondary mt-1" title="System closed session — staff did not sign out">AUTO OUT</span>
+                                        @endif
                                     @else
                                         <span class="badge badge-pill badge-warning px-3 border border-warning text-dark">
                                             Still Working
@@ -369,6 +373,9 @@
                                     <!-- Overdue Status -->
                                     @if($log->is_overdue)
                                         <span class="badge badge-warning text-dark border border-warning" title="Forgot to sign out or working extra hours">OVERDUE</span>
+                                    @endif
+                                    @if($log->is_forgot_sign_out)
+                                        <span class="badge badge-secondary" title="Auto closed at expected departure — SMS sent to staff and CEO">FORGOT SIGN-OUT</span>
                                     @endif
 
                                     <hr class="my-1">
@@ -435,6 +442,9 @@
                                 @if($log->is_overdue)
                                     <span class="badge badge-warning text-dark">OVERDUE</span>
                                 @endif
+                                @if($log->is_forgot_sign_out)
+                                    <span class="badge badge-secondary">FORGOT SIGN-OUT</span>
+                                @endif
                             </div>
                         </div>
                         <div class="small">
@@ -443,6 +453,9 @@
                                 <i class="fa fa-sign-out"></i> <strong>Out:</strong>
                                 @if($log->signed_out_at)
                                     {{ \Carbon\Carbon::parse($log->signed_out_at)->format('d M Y h:i A') }}
+                                    @if($log->is_forgot_sign_out)
+                                        <span class="badge badge-secondary ml-1">AUTO</span>
+                                    @endif
                                 @else
                                     <span class="text-warning">Still working</span>
                                 @endif
@@ -613,6 +626,9 @@
             html += '<span class="popup-badge" style="background:#dc3545;">Late</span>';
         } else if (pin.inside_hq) {
             html += '<span class="popup-badge" style="background:#28a745;">On time</span>';
+        }
+        if (pin.forgot_sign_out) {
+            html += '<span class="popup-badge" style="background:#6c757d;">Forgot sign-out</span>';
         }
         if (pin.still_working) {
             html += '<span class="popup-badge" style="background:#007bff;">At ' + escapeHtml(hqName) + ' now</span>';

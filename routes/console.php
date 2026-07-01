@@ -23,7 +23,7 @@ Schedule::command('sms:send-scheduled')
     ->withoutOverlapping();
 
 Schedule::command('attendance:auto-sign-out')
-    ->dailyAt('00:05')
+    ->everyFiveMinutes()
     ->timezone('Africa/Dar_es_Salaam')
     ->name('attendance-auto-sign-out')
     ->withoutOverlapping();
@@ -32,4 +32,10 @@ Schedule::command('attendance:send-reminders')
     ->dailyAt('08:30')
     ->timezone('Africa/Dar_es_Salaam')
     ->name('attendance-send-reminders')
+    ->withoutOverlapping();
+
+Schedule::command('attendance:send-weekly-summary')
+    ->hourly()
+    ->timezone('Africa/Dar_es_Salaam')
+    ->name('attendance-weekly-summary')
     ->withoutOverlapping();

@@ -180,6 +180,15 @@ class StaffAttendanceController extends Controller
     {
         $user = $request->user();
 
+        $ruleError = $this->rules->canSignIn($user);
+        if ($ruleError) {
+            return response()->json([
+                'success' => false,
+                'error' => $ruleError,
+                'message' => $ruleError,
+            ], 400);
+        }
+
         // Check if already signed in (open session)
         $existing = StaffAttendance::where('user_id', $user->id)
             ->whereNull('signed_out_at')
@@ -227,7 +236,15 @@ class StaffAttendanceController extends Controller
         ]);
 
         if ($attendance->is_late) {
-            $this->notifications->notifyLateSignIn($user, $attendance);
+            try {
+                $this->notifications->notifyLateSignIn($user, $attendance);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Late comer notification failed', [
+                    'user_id' => $user->id,
+                    'attendance_id' => $attendance->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         return response()->json([

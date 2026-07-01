@@ -80,7 +80,7 @@
         <div class="col-lg-6 settings-section">
             <div class="tile">
                 <h3 class="tile-title"><i class="fa fa-clock-o"></i> Working Hours</h3>
-                <p class="settings-hint">Sign-in after arrival time is marked <strong>Late</strong>. Sign-out before departure may be flagged early.</p>
+                <p class="settings-hint">Sign-in after arrival + grace minutes is marked <strong>Late</strong>. Sign-out before departure may be flagged early. Open sessions are <strong>auto closed at expected departure</strong> if staff forget to sign out.</p>
                 <div class="form-row">
                     <div class="form-group col-md-6">
                         <label class="font-weight-bold">Expected arrival</label>
@@ -91,9 +91,16 @@
                         <input type="time" name="expected_departure_time" class="form-control" value="{{ old('expected_departure_time', $expectedOutTime) }}" required>
                     </div>
                 </div>
-                <div class="form-group mb-0">
-                    <label class="font-weight-bold">Staff sign session timeout (minutes)</label>
-                    <input type="number" name="sign_session_timeout_minutes" class="form-control" min="5" max="240" value="{{ old('sign_session_timeout_minutes', $sessionTimeout) }}" required>
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label class="font-weight-bold">Late grace period (minutes)</label>
+                        <input type="number" name="late_grace_minutes" class="form-control" min="0" max="120" value="{{ old('late_grace_minutes', $lateGraceMinutes) }}" required>
+                        <small class="text-muted">e.g. 10 = not late until 10 min after arrival time</small>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label class="font-weight-bold">Staff sign session timeout (minutes)</label>
+                        <input type="number" name="sign_session_timeout_minutes" class="form-control" min="5" max="240" value="{{ old('sign_session_timeout_minutes', $sessionTimeout) }}" required>
+                    </div>
                 </div>
             </div>
         </div>
@@ -148,10 +155,60 @@
                     <input type="text" name="weekend_days" class="form-control" value="{{ old('weekend_days', $weekendDays) }}" placeholder="0,6">
                     <small class="text-muted">0=Sunday, 1=Monday … 6=Saturday</small>
                 </div>
-                <div class="form-group mb-0">
+                <div class="form-group">
                     <label class="font-weight-bold">Public holidays</label>
                     <input type="text" name="public_holidays" class="form-control" value="{{ old('public_holidays', $publicHolidays) }}" placeholder="2026-12-25, 2026-01-01">
                     <small class="text-muted">Comma-separated dates (YYYY-MM-DD)</small>
+                </div>
+                <div class="custom-control custom-checkbox mb-0">
+                    <input type="checkbox" class="custom-control-input" id="block_sign_in_non_working_days" name="block_sign_in_non_working_days" value="1" {{ old('block_sign_in_non_working_days', $blockSignInNonWorkingDays) ? 'checked' : '' }}>
+                    <label class="custom-control-label font-weight-bold" for="block_sign_in_non_working_days">Block staff sign-in on weekends and public holidays</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 settings-section">
+            <div class="tile">
+                <h3 class="tile-title"><i class="fa fa-bar-chart"></i> Weekly Attendance SMS</h3>
+                <p class="settings-hint">At <strong>end of each week</strong> (day &amp; time below), active staff get their summary. CEO/HR get one SMS with <strong>totals for all active staff</strong>. Deactivated staff are never included.</p>
+
+                <div class="custom-control custom-checkbox mb-2">
+                    <input type="checkbox" class="custom-control-input" id="weekly_attendance_sms_enabled" name="weekly_attendance_sms_enabled" value="1" {{ old('weekly_attendance_sms_enabled', $weeklyAttendanceSmsEnabled) ? 'checked' : '' }}>
+                    <label class="custom-control-label font-weight-bold" for="weekly_attendance_sms_enabled">Enable weekly attendance summaries</label>
+                </div>
+                <div class="custom-control custom-checkbox mb-2">
+                    <input type="checkbox" class="custom-control-input" id="weekly_attendance_staff_sms_enabled" name="weekly_attendance_staff_sms_enabled" value="1" {{ old('weekly_attendance_staff_sms_enabled', $weeklyAttendanceStaffSmsEnabled) ? 'checked' : '' }}>
+                    <label class="custom-control-label" for="weekly_attendance_staff_sms_enabled">Send each active staff member their own summary</label>
+                </div>
+                <div class="custom-control custom-checkbox mb-3">
+                    <input type="checkbox" class="custom-control-input" id="weekly_attendance_ceo_sms_enabled" name="weekly_attendance_ceo_sms_enabled" value="1" {{ old('weekly_attendance_ceo_sms_enabled', $weeklyAttendanceCeoSmsEnabled) ? 'checked' : '' }}>
+                    <label class="custom-control-label" for="weekly_attendance_ceo_sms_enabled">Send CEO/HR one combined summary for all staff</label>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group col-md-6">
+                        <label class="font-weight-bold">Send on (end of week)</label>
+                        <select name="weekly_summary_day" class="form-control" required>
+                            @foreach([0 => 'Sunday', 1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday'] as $dayNum => $dayLabel)
+                                <option value="{{ $dayNum }}" {{ (int) old('weekly_summary_day', $weeklySummaryDay) === $dayNum ? 'selected' : '' }}>{{ $dayLabel }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label class="font-weight-bold">Send time</label>
+                        <input type="time" name="weekly_summary_time" class="form-control" value="{{ old('weekly_summary_time', $weeklySummaryTime) }}" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="font-weight-bold">SMS to each staff member</label>
+                    <textarea name="weekly_attendance_staff_sms_template" class="form-control" rows="2">{{ old('weekly_attendance_staff_sms_template', $weeklyAttendanceStaffSmsTemplate) }}</textarea>
+                    <small class="text-muted">Placeholders: <code>{name}</code>, <code>{week}</code>, <code>{days_present}</code>, <code>{late_count}</code>, <code>{forgot_sign_out_count}</code>, <code>{hq_name}</code></small>
+                </div>
+                <div class="form-group mb-0">
+                    <label class="font-weight-bold">SMS to CEO / HR (all staff totals)</label>
+                    <textarea name="weekly_attendance_ceo_sms_template" class="form-control" rows="2">{{ old('weekly_attendance_ceo_sms_template', $weeklyAttendanceCeoSmsTemplate) }}</textarea>
+                    <small class="text-muted">Placeholders: <code>{week}</code>, <code>{staff_count}</code>, <code>{total_present}</code>, <code>{total_late}</code>, <code>{total_forgot}</code>, <code>{hq_name}</code>. Recipients = <strong>Late Comer SMS Alerts</strong> list below.</small>
                 </div>
             </div>
         </div>
@@ -177,8 +234,35 @@
 
         <div class="col-12 settings-section">
             <div class="tile">
+                <h3 class="tile-title"><i class="fa fa-clock-o"></i> Forgot Sign-Out &amp; Auto Close</h3>
+                <p class="settings-hint">If staff forget to sign out, the system <strong>auto-closes</strong> their session at expected departure. Staff receive an SMS that today is closed; <strong>next day they sign in fresh</strong> for the new day. CEO/HR also get an alert.</p>
+
+                <div class="custom-control custom-checkbox mb-2">
+                    <input type="checkbox" class="custom-control-input" id="auto_sign_out_enabled" name="auto_sign_out_enabled" value="1" {{ old('auto_sign_out_enabled', $autoSignOutEnabled) ? 'checked' : '' }}>
+                    <label class="custom-control-label font-weight-bold" for="auto_sign_out_enabled">Auto sign-out at expected departure time</label>
+                </div>
+                <div class="custom-control custom-checkbox mb-3">
+                    <input type="checkbox" class="custom-control-input" id="forgot_sign_out_sms_enabled" name="forgot_sign_out_sms_enabled" value="1" {{ old('forgot_sign_out_sms_enabled', $forgotSignOutSmsEnabled) ? 'checked' : '' }}>
+                    <label class="custom-control-label font-weight-bold" for="forgot_sign_out_sms_enabled">Send SMS to staff and CEO/HR when auto sign-out happens</label>
+                </div>
+
+                <div class="form-group">
+                    <label class="font-weight-bold">SMS to staff (forgot to sign out)</label>
+                    <textarea name="forgot_sign_out_staff_sms_template" class="form-control" rows="2">{{ old('forgot_sign_out_staff_sms_template', $forgotSignOutStaffSmsTemplate) }}</textarea>
+                    <small class="text-muted">Keep it short. Placeholders: <code>{name}</code>, <code>{staff_id}</code>, <code>{time}</code>, <code>{date}</code>, <code>{expected_departure}</code>, <code>{hq_name}</code></small>
+                </div>
+                <div class="form-group mb-0">
+                    <label class="font-weight-bold">SMS to CEO / HR (alert)</label>
+                    <textarea name="forgot_sign_out_manager_sms_template" class="form-control" rows="2">{{ old('forgot_sign_out_manager_sms_template', $forgotSignOutManagerSmsTemplate) }}</textarea>
+                    <small class="text-muted">Keep it short. Uses CEO/HR from <strong>Late Comer SMS Alerts</strong> below.</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 settings-section">
+            <div class="tile">
                 <h3 class="tile-title"><i class="fa fa-exclamation-triangle"></i> Late Comer SMS Alerts</h3>
-                <p class="settings-hint">When a staff member signs in late, SMS is sent to the people selected below.</p>
+                <p class="settings-hint">When a staff member signs in late, SMS is sent to the people selected below. Each person must have a valid phone number on their profile (or use extra numbers).</p>
 
                 <div class="custom-control custom-checkbox mb-3">
                     <input type="checkbox" class="custom-control-input" id="late_comer_sms_enabled" name="late_comer_sms_enabled" value="1" {{ old('late_comer_sms_enabled', $lateComerSmsEnabled) ? 'checked' : '' }}>
@@ -202,7 +286,7 @@
                             @forelse($notifyUsers as $notifyUser)
                                 <div class="settings-user-row">
                                     <input type="checkbox" name="late_comer_notify_user_ids[]" value="{{ $notifyUser->id }}" id="notify_user_{{ $notifyUser->id }}"
-                                        {{ in_array($notifyUser->id, old('late_comer_notify_user_ids', $lateComerNotifyUserIds), true) ? 'checked' : '' }}>
+                                        {{ in_array($notifyUser->id, array_map('intval', old('late_comer_notify_user_ids', $lateComerNotifyUserIds)), true) ? 'checked' : '' }}>
                                     <label for="notify_user_{{ $notifyUser->id }}" class="mb-0 small">
                                         <strong>{{ $notifyUser->name }}</strong>
                                         <span class="text-muted">({{ ucfirst(str_replace('_', ' ', $notifyUser->role)) }})</span>
@@ -230,6 +314,22 @@
                     <label class="font-weight-bold">Late comer message template</label>
                     <textarea name="late_comer_sms_template" class="form-control" rows="3">{{ old('late_comer_sms_template', $lateComerSmsTemplate) }}</textarea>
                     <small class="text-muted">Placeholders: <code>{name}</code>, <code>{staff_id}</code>, <code>{time}</code>, <code>{date}</code>, <code>{expected_time}</code></small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 settings-section">
+            <div class="tile">
+                <h3 class="tile-title"><i class="fa fa-envelope"></i> Scheduled SMS Confirmations</h3>
+                <p class="settings-hint">When a scheduled SMS batch finishes sending, the staff member who created it receives a summary SMS on their profile phone number.</p>
+                <div class="custom-control custom-checkbox mb-3">
+                    <input type="checkbox" class="custom-control-input" id="scheduled_sms_confirmation_enabled" name="scheduled_sms_confirmation_enabled" value="1" {{ old('scheduled_sms_confirmation_enabled', $scheduledSmsConfirmationEnabled) ? 'checked' : '' }}>
+                    <label class="custom-control-label font-weight-bold" for="scheduled_sms_confirmation_enabled">Notify staff when scheduled SMS is sent</label>
+                </div>
+                <div class="form-group mb-0">
+                    <label class="font-weight-bold">Confirmation message template</label>
+                    <textarea name="scheduled_sms_confirmation_template" class="form-control" rows="3">{{ old('scheduled_sms_confirmation_template', $scheduledSmsConfirmationTemplate) }}</textarea>
+                    <small class="text-muted">Placeholders: <code>{name}</code>, <code>{total}</code>, <code>{sent}</code>, <code>{failed}</code>, <code>{scheduled_time}</code>, <code>{time}</code></small>
                 </div>
             </div>
         </div>

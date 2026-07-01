@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Customer;
 use App\Models\SmsLog;
 use App\Models\VisitConfirmation;
+use App\Services\SmsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class SystemEnhancementsTest extends TestCase
@@ -108,6 +109,27 @@ class SystemEnhancementsTest extends TestCase
     }
 
     /** @test */
+    public function late_comer_notification_resolves_selected_user_phones()
+    {
+        $ceo = User::create([
+            'name' => 'CEO User',
+            'email' => 'ceo@emca.tech',
+            'phone' => '0711223344',
+            'password' => bcrypt('password'),
+            'role' => 'ceo',
+            'is_active' => true,
+        ]);
+
+        $settings = app(\App\Services\AttendanceSettingService::class);
+        $settings->set('late_comer_notify_user_ids', json_encode([$ceo->id]));
+        $settings->set('late_comer_notify_roles', '[]');
+
+        $phones = $settings->lateComerNotificationPhones();
+
+        $this->assertContains('255711223344', $phones);
+    }
+
+    /** @test */
     public function sms_scheduling_stores_scheduled_log()
     {
         $admin = User::create([
@@ -143,6 +165,69 @@ class SystemEnhancementsTest extends TestCase
             'phone_number' => '255712345678',
             'message' => 'Hello Test Customer, this is scheduled.',
             'status' => 'scheduled',
+        ]);
+    }
+
+    /** @test */
+    public function scheduled_sms_sends_confirmation_to_staff_who_scheduled_it()
+    {
+        $staff = User::create([
+            'name' => 'Scheduler Staff',
+            'email' => 'scheduler@emcatech.com',
+            'phone' => '255712345678',
+            'password' => bcrypt('password'),
+            'role' => 'staff',
+            'is_active' => true,
+        ]);
+
+        $customer = Customer::create([
+            'name' => 'Batch Customer',
+            'phone_number' => '255798765432',
+            'created_by' => $staff->id,
+        ]);
+
+        $scheduledAt = now()->subMinute();
+
+        SmsLog::create([
+            'customer_id' => $customer->id,
+            'phone_number' => '255798765432',
+            'message' => 'Hello Batch Customer, scheduled message.',
+            'sms_type' => 'custom',
+            'status' => 'scheduled',
+            'scheduled_at' => $scheduledAt,
+            'sent_by' => $staff->id,
+        ]);
+
+        $this->mock(SmsService::class, function ($mock) use ($staff) {
+            $mock->shouldReceive('sendSms')
+                ->once()
+                ->andReturn(['success' => true]);
+
+            $mock->shouldReceive('sendAndLog')
+                ->once()
+                ->withArgs(function ($phone, $message, $type, $customerId, $sentBy) use ($staff) {
+                    return $phone === $staff->phone
+                        && $type === 'other'
+                        && $customerId === null
+                        && $sentBy === $staff->id
+                        && str_contains($message, 'Scheduler Staff')
+                        && str_contains($message, '1');
+                })
+                ->andReturn(new SmsLog([
+                    'phone_number' => $staff->phone,
+                    'message' => 'confirmation',
+                    'sms_type' => 'other',
+                    'status' => 'sent',
+                    'sent_by' => $staff->id,
+                    'sent_at' => now(),
+                ]));
+        });
+
+        $this->artisan('sms:send-scheduled')->assertExitCode(0);
+
+        $this->assertDatabaseHas('sms_logs', [
+            'phone_number' => '255798765432',
+            'status' => 'sent',
         ]);
     }
 

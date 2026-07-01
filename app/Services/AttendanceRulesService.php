@@ -30,6 +30,14 @@ class AttendanceRulesService
 
     public function canSignIn(User $user): ?string
     {
+        if ($this->settings->blockSignInOnNonWorkingDays() && $this->settings->isNonWorkingDay()) {
+            if ($this->settings->isPublicHoliday()) {
+                return 'Sign-in is not allowed today — public holiday.';
+            }
+
+            return 'Sign-in is not allowed today — weekend / non-working day.';
+        }
+
         if ($this->hasSignedInToday($user->id)) {
             return 'You have already signed in today. Only one sign-in per day is allowed.';
         }
@@ -44,8 +52,9 @@ class AttendanceRulesService
     public function isLate(Carbon $signedInAt): bool
     {
         $expected = Carbon::parse($signedInAt->toDateString() . ' ' . $this->settings->expectedArrivalTime());
+        $deadline = $expected->copy()->addMinutes($this->settings->lateGraceMinutes());
 
-        return $signedInAt->greaterThan($expected);
+        return $signedInAt->greaterThan($deadline);
     }
 
     public function isEarlyOut(Carbon $signedOutAt): bool

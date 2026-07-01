@@ -2,9 +2,11 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\SmsLog;
+use App\Models\User;
+use App\Services\AttendanceSettingService;
 use App\Services\SmsService;
+use Illuminate\Console\Command;
 
 class SendScheduledSms extends Command
 {
@@ -21,6 +23,12 @@ class SendScheduledSms extends Command
      * @var string
      */
     protected $description = 'Send scheduled SMS messages that are due';
+
+    public function __construct(
+        protected AttendanceSettingService $settings
+    ) {
+        parent::__construct();
+    }
 
     /**
      * Execute the console command.
@@ -41,6 +49,8 @@ class SendScheduledSms extends Command
 
         $this->info("Found {$scheduledSms->count()} scheduled SMS messages to send.");
 
+        $batches = [];
+
         foreach ($scheduledSms as $sms) {
             $this->info("Sending SMS ID {$sms->id} to {$sms->phone_number}...");
             try {
@@ -60,10 +70,86 @@ class SendScheduledSms extends Command
                     'sent_at' => now(),
                 ]);
                 $this->error("Failed sending SMS ID {$sms->id}: " . $e->getMessage());
+                $result = ['success' => false];
+            }
+
+            $batchKey = $this->batchKey($sms);
+            if (!isset($batches[$batchKey])) {
+                $batches[$batchKey] = [
+                    'sent_by' => $sms->sent_by,
+                    'scheduled_at' => $sms->scheduled_at,
+                    'total' => 0,
+                    'sent' => 0,
+                    'failed' => 0,
+                ];
+            }
+
+            $batches[$batchKey]['total']++;
+            if (($result['success'] ?? false) === true) {
+                $batches[$batchKey]['sent']++;
+            } else {
+                $batches[$batchKey]['failed']++;
+            }
+        }
+
+        if ($this->settings->scheduledSmsConfirmationEnabled()) {
+            foreach ($batches as $batch) {
+                $this->sendBatchConfirmation($smsService, $batch);
             }
         }
 
         $this->info('Scheduled SMS processing completed.');
         return 0;
+    }
+
+    private function batchKey(SmsLog $sms): string
+    {
+        $scheduledAt = $sms->scheduled_at?->format('Y-m-d H:i:s') ?? 'unknown';
+
+        return ($sms->sent_by ?? '0') . '::' . $scheduledAt;
+    }
+
+    /**
+     * @param array{sent_by: int|null, scheduled_at: \Carbon\Carbon|null, total: int, sent: int, failed: int} $batch
+     */
+    private function sendBatchConfirmation(SmsService $smsService, array $batch): void
+    {
+        if (!$batch['sent_by']) {
+            $this->warn('Skipping confirmation SMS: batch has no scheduler.');
+            return;
+        }
+
+        $staff = User::find($batch['sent_by']);
+        if (!$staff || !$staff->phone) {
+            $this->warn("Skipping confirmation SMS: staff #{$batch['sent_by']} has no phone number.");
+            return;
+        }
+
+        $message = str_replace(
+            ['{name}', '{total}', '{sent}', '{failed}', '{scheduled_time}', '{time}'],
+            [
+                $staff->name,
+                (string) $batch['total'],
+                (string) $batch['sent'],
+                (string) $batch['failed'],
+                $batch['scheduled_at']?->format('M d, Y H:i') ?? 'N/A',
+                now()->format('M d, Y H:i'),
+            ],
+            $this->settings->scheduledSmsConfirmationTemplate()
+        );
+
+        $this->info("Sending scheduled SMS confirmation to {$staff->name} ({$staff->phone})...");
+
+        try {
+            $smsService->sendAndLog(
+                $staff->phone,
+                $message,
+                'other',
+                null,
+                $staff->id
+            );
+        } catch (\Exception $e) {
+            $this->error("Failed sending confirmation SMS to staff #{$staff->id}: " . $e->getMessage());
+        }
     }
 }

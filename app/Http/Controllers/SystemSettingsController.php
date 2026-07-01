@@ -17,7 +17,6 @@ class SystemSettingsController extends Controller
         $this->authorizeSettings();
 
         $notifyUsers = User::query()
-            ->whereIn('role', ['super_admin', 'ceo', 'hr'])
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'phone', 'role']);
@@ -40,6 +39,23 @@ class SystemSettingsController extends Controller
             'lateComerNotifyRoles' => $this->settings->lateComerNotifyRoles(),
             'lateComerNotifyUserIds' => $this->settings->lateComerNotifyUserIds(),
             'lateComerExtraPhones' => implode(', ', $this->settings->lateComerExtraPhones()),
+            'autoSignOutEnabled' => $this->settings->autoSignOutEnabled(),
+            'forgotSignOutSmsEnabled' => $this->settings->forgotSignOutSmsEnabled(),
+            'forgotSignOutStaffSmsTemplate' => $this->settings->forgotSignOutStaffSmsTemplate(),
+            'forgotSignOutManagerSmsTemplate' => $this->settings->forgotSignOutManagerSmsTemplate(),
+            'lateGraceMinutes' => $this->settings->lateGraceMinutes(),
+            'blockSignInNonWorkingDays' => $this->settings->blockSignInOnNonWorkingDays(),
+            'monthlyAttendanceSmsEnabled' => $this->settings->weeklyAttendanceSmsEnabled(),
+            'weeklyAttendanceSmsEnabled' => $this->settings->weeklyAttendanceSmsEnabled(),
+            'weeklyAttendanceStaffSmsEnabled' => $this->settings->weeklyAttendanceStaffSmsEnabled(),
+            'weeklyAttendanceCeoSmsEnabled' => $this->settings->weeklyAttendanceCeoSmsEnabled(),
+            'weeklySummaryDay' => $this->settings->weeklySummaryDay(),
+            'weeklySummaryTime' => substr($this->settings->weeklySummaryTime(), 0, 5),
+            'weeklyAttendanceStaffSmsTemplate' => $this->settings->weeklyAttendanceStaffSmsTemplate(),
+            'weeklyAttendanceCeoSmsTemplate' => $this->settings->weeklyAttendanceCeoSmsTemplate(),
+            'monthlyAttendanceSmsTemplate' => $this->settings->weeklyAttendanceStaffSmsTemplate(),
+            'scheduledSmsConfirmationEnabled' => $this->settings->scheduledSmsConfirmationEnabled(),
+            'scheduledSmsConfirmationTemplate' => $this->settings->scheduledSmsConfirmationTemplate(),
             'notifyUsers' => $notifyUsers,
         ]);
     }
@@ -57,10 +73,19 @@ class SystemSettingsController extends Controller
             'geofence_radius' => 'required|numeric|min:10|max:500',
             'sign_reminder_time' => 'required|date_format:H:i',
             'sign_session_timeout_minutes' => 'required|integer|min:5|max:240',
+            'late_grace_minutes' => 'required|integer|min:0|max:120',
             'weekend_days' => 'nullable|string',
             'public_holidays' => 'nullable|string',
             'sign_reminder_sms_template' => 'nullable|string|max:500',
             'late_comer_sms_template' => 'nullable|string|max:500',
+            'forgot_sign_out_staff_sms_template' => 'nullable|string|max:500',
+            'forgot_sign_out_manager_sms_template' => 'nullable|string|max:500',
+            'weekly_attendance_staff_sms_template' => 'nullable|string|max:500',
+            'weekly_attendance_ceo_sms_template' => 'nullable|string|max:500',
+            'weekly_summary_day' => 'required|integer|min:0|max:6',
+            'weekly_summary_time' => 'required|date_format:H:i',
+            'monthly_attendance_sms_template' => 'nullable|string|max:500',
+            'scheduled_sms_confirmation_template' => 'nullable|string|max:500',
             'late_comer_extra_phones' => 'nullable|string|max:500',
             'late_comer_notify_roles' => 'nullable|array',
             'late_comer_notify_roles.*' => 'in:super_admin,ceo,hr',
@@ -76,19 +101,47 @@ class SystemSettingsController extends Controller
         $this->settings->set('geofence_radius', $request->geofence_radius);
         $this->settings->set('sign_reminder_time', $request->sign_reminder_time . ':00');
         $this->settings->set('sign_session_timeout_minutes', $request->sign_session_timeout_minutes);
+        $this->settings->set('late_grace_minutes', $request->late_grace_minutes);
         $this->settings->set('weekend_days', $request->weekend_days ?? '0,6');
+        $this->settings->set('block_sign_in_non_working_days', $request->boolean('block_sign_in_non_working_days') ? '1' : '0');
 
         $holidays = array_filter(array_map('trim', explode(',', $request->public_holidays ?? '')));
         $this->settings->set('public_holidays', json_encode(array_values($holidays)));
 
         $this->settings->set('sign_reminder_sms_enabled', $request->boolean('sign_reminder_sms_enabled') ? '1' : '0');
         $this->settings->set('late_comer_sms_enabled', $request->boolean('late_comer_sms_enabled') ? '1' : '0');
+        $this->settings->set('auto_sign_out_enabled', $request->boolean('auto_sign_out_enabled') ? '1' : '0');
+        $this->settings->set('forgot_sign_out_sms_enabled', $request->boolean('forgot_sign_out_sms_enabled') ? '1' : '0');
+        $this->settings->set('weekly_attendance_sms_enabled', $request->boolean('weekly_attendance_sms_enabled') ? '1' : '0');
+        $this->settings->set('weekly_attendance_staff_sms_enabled', $request->boolean('weekly_attendance_staff_sms_enabled') ? '1' : '0');
+        $this->settings->set('weekly_attendance_ceo_sms_enabled', $request->boolean('weekly_attendance_ceo_sms_enabled') ? '1' : '0');
+        $this->settings->set('weekly_summary_day', $request->weekly_summary_day);
+        $this->settings->set('weekly_summary_time', $request->weekly_summary_time . ':00');
+        $this->settings->set('scheduled_sms_confirmation_enabled', $request->boolean('scheduled_sms_confirmation_enabled') ? '1' : '0');
 
         if ($request->filled('sign_reminder_sms_template')) {
             $this->settings->set('sign_reminder_sms_template', $request->sign_reminder_sms_template);
         }
         if ($request->filled('late_comer_sms_template')) {
             $this->settings->set('late_comer_sms_template', $request->late_comer_sms_template);
+        }
+        if ($request->filled('forgot_sign_out_staff_sms_template')) {
+            $this->settings->set('forgot_sign_out_staff_sms_template', $request->forgot_sign_out_staff_sms_template);
+        }
+        if ($request->filled('forgot_sign_out_manager_sms_template')) {
+            $this->settings->set('forgot_sign_out_manager_sms_template', $request->forgot_sign_out_manager_sms_template);
+        }
+        if ($request->filled('weekly_attendance_staff_sms_template')) {
+            $this->settings->set('weekly_attendance_staff_sms_template', $request->weekly_attendance_staff_sms_template);
+        }
+        if ($request->filled('weekly_attendance_ceo_sms_template')) {
+            $this->settings->set('weekly_attendance_ceo_sms_template', $request->weekly_attendance_ceo_sms_template);
+        }
+        if ($request->filled('monthly_attendance_sms_template')) {
+            $this->settings->set('weekly_attendance_staff_sms_template', $request->monthly_attendance_sms_template);
+        }
+        if ($request->filled('scheduled_sms_confirmation_template')) {
+            $this->settings->set('scheduled_sms_confirmation_template', $request->scheduled_sms_confirmation_template);
         }
 
         $this->settings->set(
@@ -97,7 +150,7 @@ class SystemSettingsController extends Controller
         );
         $this->settings->set(
             'late_comer_notify_user_ids',
-            json_encode(array_values($request->input('late_comer_notify_user_ids', [])))
+            json_encode(array_map('intval', array_values($request->input('late_comer_notify_user_ids', []))))
         );
         $this->settings->set('late_comer_extra_phones', $request->late_comer_extra_phones ?? '');
 
