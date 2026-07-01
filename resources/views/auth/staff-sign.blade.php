@@ -64,8 +64,9 @@
         }
         @media (max-width: 767px) {
             .sign-panel.sign-panel-guest {
-                max-height: none;
-                height: auto;
+                max-height: 38vh;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
                 padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
             }
             .sign-panel.sign-panel-guest .sign-panel-handle {
@@ -414,36 +415,72 @@
         }
         .staff-device-danger {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             align-items: flex-start;
-            background: linear-gradient(135deg, #fff5f5 0%, #fdecea 100%);
-            border: 2px solid #dc3545;
-            border-radius: 12px;
-            padding: 12px 14px;
-            margin-bottom: 14px;
+            background: #fdecea;
+            border: 1px solid #f5c2c7;
+            border-radius: 10px;
+            padding: 8px 10px;
+            margin-bottom: 10px;
             color: #842029;
-            font-size: 0.82rem;
-            line-height: 1.45;
+            font-size: 0.72rem;
+            line-height: 1.35;
         }
-        .sign-panel-guest .staff-device-danger {
-            margin-bottom: 12px;
-            font-size: 0.78rem;
+        .device-lock-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0 0 10px;
+            padding: 6px 10px;
+            border-radius: 8px;
+            background: #fdecea;
+            border: 1px solid #f5c2c7;
+            color: #842029;
+            font-size: 0.72rem;
+            line-height: 1.3;
+        }
+        .device-lock-chip .fa {
+            flex-shrink: 0;
+            font-size: 0.75rem;
+            color: #dc3545;
+        }
+        .device-lock-chip span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .device-lock-chip--warn {
+            background: #fff8e6;
+            border-color: #ffe08a;
+            color: #7a5b00;
+        }
+        .device-lock-chip--warn .fa { color: #d39e00; }
+        .device-lock-chip--locked {
+            background: #fff0f0;
+            border-color: #e8b4b4;
+        }
+        .sign-panel-guest .auth-header-compact {
+            margin-bottom: 10px;
+        }
+        .sign-panel-guest .auth-header-compact .auth-header-text p {
+            display: none;
         }
         .staff-device-danger .fa {
             color: #dc3545;
-            font-size: 1.2rem;
-            margin-top: 2px;
+            font-size: 0.9rem;
+            margin-top: 1px;
             flex-shrink: 0;
         }
         .staff-device-danger strong {
-            display: block;
-            font-size: 0.88rem;
-            margin-bottom: 4px;
+            display: inline;
+            font-size: inherit;
+            margin-bottom: 0;
             color: #940000;
         }
         .staff-device-danger--locked {
-            border-color: #940000;
-            background: linear-gradient(135deg, #fff0f0 0%, #ffe5e5 100%);
+            border-color: #e8b4b4;
+            background: #fff0f0;
         }
         .auth-field {
             margin-bottom: 16px;
@@ -792,24 +829,18 @@
                 </div>
             @endif
 
-            <div class="staff-device-danger" id="devicePolicyWarning">
+            <p class="device-lock-chip device-lock-chip--warn" id="devicePolicyWarning">
                 <i class="fa fa-exclamation-triangle"></i>
-                <div>
-                    <strong>Device lock warning</strong>
-                    After you continue, this phone or browser will be <strong>permanently linked</strong> to your staff email. You cannot sign in with another email on this device unless an admin resets it.
-                </div>
-            </div>
+                <span>This device will lock to your email after you continue</span>
+            </p>
 
             <form action="{{ route('staff.sign.auth') }}" method="POST" class="auth-form" id="staffAuthForm">
                 @csrf
                 <input type="hidden" name="device_id" id="deviceIdField" value="">
-                <div class="staff-device-danger staff-device-danger--locked" id="deviceLockNotice" style="display:none;">
+                <p class="device-lock-chip device-lock-chip--locked" id="deviceLockNotice" style="display:none;">
                     <i class="fa fa-lock"></i>
-                    <div>
-                        <strong>Device locked</strong>
-                        <span id="deviceLockNoticeText">This device is locked to a staff email. Another account cannot be used here.</span>
-                    </div>
-                </div>
+                    <span id="deviceLockNoticeText">Device locked</span>
+                </p>
                 <div class="auth-field">
                     <label for="staffEmail">Staff email</label>
                     <div class="auth-input-wrap">
@@ -824,8 +855,6 @@
                     </button>
                 </div>
             </form>
-            <div class="auth-divider"></div>
-            <p class="device-note"><i class="fa fa-exclamation-circle" style="color:#dc3545;"></i> Do not use a shared phone for staff sign unless it belongs to you only.</p>
         @else
             @if(session('error'))
                 <div class="alert alert-danger py-2 mb-2">{{ session('error') }}</div>
@@ -834,13 +863,10 @@
                 <div class="alert alert-success py-2 mb-2">{{ session('success') }}</div>
             @endif
 
-            <div class="staff-device-danger staff-device-danger--locked mb-2">
-                <i class="fa fa-exclamation-triangle"></i>
-                <div>
-                    <strong>Device locked to {{ Auth::user()->email }}</strong>
-                    This {{ ($isMobileStaffSign ?? false) ? 'phone' : 'browser' }} is registered to your account only. Another staff member cannot use it. Contact admin if you need a reset.
-                </div>
-            </div>
+            <p class="device-lock-chip device-lock-chip--locked mb-2">
+                <i class="fa fa-lock"></i>
+                <span>Device locked · {{ Auth::user()->email }}</span>
+            </p>
 
             <div class="non-working-banner" id="nonWorkingBanner"></div>
             <h4 class="mb-1 font-weight-bold" style="color:#940000;">
@@ -929,7 +955,7 @@
 
                 if (deviceLockNotice && deviceLockNoticeText) {
                     const label = data.masked_email || data.email;
-                    deviceLockNoticeText.innerHTML = 'This device is locked to <strong>' + label + '</strong>. You must use this email. Another staff account cannot sign in here.';
+                    deviceLockNoticeText.textContent = 'Locked to ' + label;
                     deviceLockNotice.style.display = 'flex';
                 }
             } catch (e) {}
