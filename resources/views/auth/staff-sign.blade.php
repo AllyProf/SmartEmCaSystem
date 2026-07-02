@@ -222,11 +222,37 @@
         }
         .sign-window-banner .opens-countdown {
             display: block;
+            font-size: 1.05rem;
+            font-weight: 800;
+            margin-top: 8px;
+            letter-spacing: 0.02em;
+            font-variant-numeric: tabular-nums;
+        }
+        .sign-countdown-live {
+            display: none;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            border: 1px dashed #ced4da;
+            text-align: center;
+        }
+        .sign-countdown-live.active {
+            display: block;
+        }
+        .sign-countdown-live .countdown-label {
+            display: block;
             font-size: 0.78rem;
-            font-weight: 700;
-            margin-top: 4px;
-            color: inherit;
-            opacity: 0.9;
+            color: #6c757d;
+            margin-bottom: 4px;
+        }
+        .sign-countdown-live .countdown-value {
+            display: block;
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: #940000;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.04em;
         }
         .sign-panel.sign-panel-inactive .btn-sign-action {
             opacity: 0.55;
@@ -1085,6 +1111,10 @@
 
             <div class="non-working-banner" id="nonWorkingBanner"></div>
             <div class="sign-window-banner" id="signWindowBanner"></div>
+            <div class="sign-countdown-live" id="signCountdownLive">
+                <span class="countdown-label">Sign-in opens in</span>
+                <span class="countdown-value" id="signCountdownValue">--:--:--</span>
+            </div>
             <h4 class="mb-1 font-weight-bold" style="color:#940000;" id="signPanelTitle">
                 {{ $isSignedIn ? 'Signed In' : 'Ready to Sign In' }}
             </h4>
@@ -1234,6 +1264,9 @@
                 signPage: @json(route('staff.sign')),
                 reverseGeocode: @json(route('staff.sign.reverse-geocode')),
                 pingLocation: @json(route('staff.sign.ping')),
+                @if($staffSignActive)
+                status: @json(route('staff.sign.status')),
+                @endif
             },
         };
     </script>

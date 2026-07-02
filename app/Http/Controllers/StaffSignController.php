@@ -47,6 +47,7 @@ class StaffSignController extends Controller
             (bool) $attendance,
             $userId > 0 && $this->rules->hasCompletedSessionToday($userId)
         );
+        $mapConfig['server_time'] = now()->toIso8601String();
 
         return view('auth.staff-sign', [
             'mapConfig' => $mapConfig,

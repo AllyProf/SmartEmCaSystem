@@ -9,6 +9,9 @@
     const hqName = mapConfig.hq_name || 'EmCa HQ';
     let isSignedIn = isAuthenticated && cfg.isSignedIn;
     let signWindow = mapConfig.sign_window || {};
+    let serverTimeOffsetMs = 0;
+    let lastSignWindowBannerKey = '';
+    let countdownTickTimer = null;
     const csrfToken = cfg.csrfToken;
     const routes = cfg.routes;
 
@@ -247,19 +250,65 @@
         return ['before_open', 'closed', 'non_working_day', 'day_complete'].includes(signWindow?.state);
     }
 
+    function syncServerClock(serverTimeIso) {
+        if (!serverTimeIso) return;
+        const serverMs = new Date(serverTimeIso).getTime();
+        if (!Number.isNaN(serverMs)) {
+            serverTimeOffsetMs = serverMs - Date.now();
+        }
+    }
+
+    if (mapConfig.server_time) {
+        syncServerClock(mapConfig.server_time);
+    }
+
+    function serverNow() {
+        return new Date(Date.now() + serverTimeOffsetMs);
+    }
+
     function formatCountdown(ms) {
         if (ms <= 0) return 'Opening now...';
-        const totalSec = Math.ceil(ms / 1000);
-        const hours = Math.floor(totalSec / 3600);
+
+        const totalSec = Math.max(0, Math.ceil(ms / 1000));
+        const days = Math.floor(totalSec / 86400);
+        const hours = Math.floor((totalSec % 86400) / 3600);
         const mins = Math.floor((totalSec % 3600) / 60);
         const secs = totalSec % 60;
+        const pad = (n) => String(n).padStart(2, '0');
+
+        if (days > 0) {
+            return `${days}d ${pad(hours)}:${pad(mins)}:${pad(secs)}`;
+        }
+
+        return `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
+    }
+
+    function formatCountdownLabel(ms) {
+        if (ms <= 0) return 'Opening now...';
+
+        const totalSec = Math.max(0, Math.ceil(ms / 1000));
+        const days = Math.floor(totalSec / 86400);
+        const hours = Math.floor((totalSec % 86400) / 3600);
+        const mins = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+
+        if (days > 0) {
+            return `Opens in ${days} day${days === 1 ? '' : 's'} ${hours}h ${mins}m ${secs}s`;
+        }
         if (hours > 0) {
-            return `Opens in ${hours}h ${mins}m`;
+            return `Opens in ${hours}h ${mins}m ${secs}s`;
         }
         if (mins > 0) {
             return `Opens in ${mins}m ${secs}s`;
         }
         return `Opens in ${secs}s`;
+    }
+
+    function getOpensCountdownMs() {
+        if (!signWindow?.opens_at) return null;
+        const opensMs = new Date(signWindow.opens_at).getTime();
+        if (Number.isNaN(opensMs)) return null;
+        return opensMs - serverNow().getTime();
     }
 
     function applySignWindowUi() {
@@ -281,14 +330,25 @@
         if (waiting && (!isSignedIn || ['closed', 'non_working_day', 'day_complete'].includes(signWindow.state))) {
             banner.style.display = 'block';
             banner.classList.toggle('closed', ['closed', 'non_working_day', 'day_complete'].includes(signWindow.state));
-            let html = signWindow.message || 'Sign-in is not available right now.';
-            if (signWindow.opens_at) {
-                html += '<span class="opens-countdown" id="signOpensCountdown"></span>';
+            const bannerKey = `${signWindow.state}|${signWindow.message || ''}|${signWindow.opens_at || ''}`;
+            if (bannerKey !== lastSignWindowBannerKey) {
+                let html = signWindow.message || 'Sign-in is not available right now.';
+                if (signWindow.opens_at) {
+                    html += '<span class="opens-countdown" id="signOpensCountdown"></span>';
+                }
+                banner.innerHTML = html;
+                lastSignWindowBannerKey = bannerKey;
             }
-            banner.innerHTML = html;
         } else {
             banner.style.display = 'none';
             banner.innerHTML = '';
+            lastSignWindowBannerKey = '';
+        }
+
+        const countdownPanel = document.getElementById('signCountdownLive');
+        if (countdownPanel) {
+            const showCountdown = waiting && signWindow.opens_at && (!isSignedIn || ['closed', 'non_working_day', 'day_complete'].includes(signWindow.state));
+            countdownPanel.classList.toggle('active', !!showCountdown);
         }
 
         if (panel) {
@@ -313,11 +373,9 @@
                     statusText.textContent = `Sign-in is open until ${signWindow.closes_at_label || mapConfig.expected_departure}. Go to ${hqName} to sign in.`;
                 }
             } else if (signWindow.state === 'before_open' && !isSignedIn) {
-                statusText.textContent = `Sign-in opens at ${mapConfig.allow_sign_in_time || signWindow.allow_sign_in_time}. Please wait.`;
+                // Live countdown text is updated every second in updateOpensCountdown().
             } else if (['closed', 'non_working_day', 'day_complete'].includes(signWindow.state)) {
-                statusText.textContent = signWindow.opens_at_label
-                    ? `Next sign-in: ${signWindow.opens_at_label}`
-                    : (signWindow.message || 'Attendance is closed for today.');
+                // Live countdown text is updated every second in updateOpensCountdown().
             }
         }
 
@@ -337,16 +395,39 @@
     }
 
     function updateOpensCountdown() {
+        const diff = getOpensCountdownMs();
         const el = document.getElementById('signOpensCountdown');
-        if (!el || !signWindow?.opens_at) return;
+        const panelValue = document.getElementById('signCountdownValue');
+        const statusText = document.getElementById('statusText');
 
-        const opensMs = new Date(signWindow.opens_at).getTime();
-        const diff = opensMs - Date.now();
-        el.textContent = formatCountdown(diff);
+        if (diff === null) {
+            return;
+        }
+
+        const countdownText = formatCountdownLabel(diff);
+        const clockText = formatCountdown(diff);
+
+        if (el) {
+            el.textContent = countdownText;
+        }
+        if (panelValue) {
+            panelValue.textContent = clockText;
+        }
+        if (statusText && isAuthenticated && isSignWindowWaiting()) {
+            statusText.textContent = signWindow.opens_at_label
+                ? `Next sign-in: ${signWindow.opens_at_label} · ${countdownText}`
+                : countdownText;
+        }
 
         if (diff <= 0 && signWindow.state !== 'open') {
             refreshSignWindowStatus();
         }
+    }
+
+    function startCountdownTicker() {
+        if (countdownTickTimer) return;
+        updateOpensCountdown();
+        countdownTickTimer = setInterval(updateOpensCountdown, 1000);
     }
 
     async function refreshSignWindowStatus() {
@@ -359,6 +440,9 @@
             });
             if (!res.ok) return;
             const data = await res.json();
+            if (data.server_time) {
+                syncServerClock(data.server_time);
+            }
             if (typeof data.is_signed_in === 'boolean') {
                 isSignedIn = data.is_signed_in;
             }
@@ -1073,11 +1157,11 @@
         }
     }
 
-    if (isAuthenticated) {
-        applySignWindowUi();
-        setInterval(updateOpensCountdown, 1000);
-        setInterval(refreshSignWindowStatus, 60000);
-    }
+        if (isAuthenticated) {
+            applySignWindowUi();
+            startCountdownTicker();
+            setInterval(refreshSignWindowStatus, 60000);
+        }
 
     if (navigator.geolocation) {
         // Initialize map, then lock view onto first real GPS fix.
