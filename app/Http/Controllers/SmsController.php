@@ -28,13 +28,47 @@ class SmsController extends Controller
             ->orderByRaw("CASE WHEN status = 'scheduled' AND scheduled_at IS NOT NULL THEN scheduled_at WHEN status = 'cancelled' THEN updated_at WHEN sent_at IS NOT NULL THEN sent_at ELSE created_at END DESC")
             ->paginate(50);
 
-        $scheduledBatches = SmsSchedule::whereIn('status', ['scheduled', 'paused'])
+        $scheduleBatches = SmsSchedule::whereIn('status', ['scheduled', 'paused'])
             ->whereNotNull('scheduled_at')
             ->orderByDesc('scheduled_at')
             ->withCount([
                 'logs as total' => fn ($q) => $q->where('status', 'scheduled'),
             ])
             ->get();
+
+        // Legacy batches (scheduled before SmsSchedule existed)
+        $legacyBatches = SmsLog::where('status', 'scheduled')
+            ->whereNotNull('scheduled_at')
+            ->whereNull('schedule_id')
+            ->get()
+            ->groupBy(fn ($sms) => $sms->scheduled_at->format('Y-m-d H:i:s') . '::' . md5($sms->message))
+            ->map(function ($group) {
+                $first = $group->first();
+
+                return (object) [
+                    'kind' => 'legacy',
+                    'scheduled_at' => $first->scheduled_at,
+                    'message_template' => $first->message,
+                    'total' => $group->count(),
+                    'status' => 'scheduled',
+                ];
+            })
+            ->values();
+
+        $scheduledBatches = $scheduleBatches
+            ->map(function (SmsSchedule $s) {
+                return (object) [
+                    'kind' => 'schedule',
+                    'id' => $s->id,
+                    'scheduled_at' => $s->scheduled_at,
+                    'message_template' => $s->message_template,
+                    'total' => (int) ($s->total ?? 0),
+                    'status' => $s->status,
+                ];
+            })
+            ->merge($legacyBatches)
+            ->sortByDesc(fn ($b) => $b->scheduled_at?->timestamp ?? 0)
+            ->values();
 
         return view('sms.index', compact('customers', 'smsLogs', 'scheduledBatches'));
     }

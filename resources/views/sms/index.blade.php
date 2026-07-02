@@ -164,38 +164,51 @@
                                 <strong>{{ $batch->total }}</strong> message(s) scheduled for
                                 <strong>{{ $batch->scheduled_at->format('M d, Y H:i') }}</strong>
                                 <span class="text-muted">· {{ Str::limit($batch->message_template, 50) }}</span>
-                                @if($batch->status === 'paused')
+                                @if(($batch->status ?? null) === 'paused')
                                     <span class="badge badge-secondary ml-2"><i class="fa fa-pause"></i> Paused</span>
                                 @endif
                             </span>
                             <span class="d-flex flex-wrap scheduled-batch-actions">
-                                <a class="btn btn-sm btn-secondary"
-                                   href="{{ route('sms.schedules.edit', $batch->id) }}">
-                                    <i class="fa fa-pencil"></i> Edit
-                                </a>
-                                @if($batch->status === 'scheduled')
-                                    <form action="{{ route('sms.schedules.pause', $batch->id) }}" method="POST" class="mb-0 d-inline">
+                                @if(($batch->kind ?? 'schedule') === 'schedule')
+                                    <a class="btn btn-sm btn-secondary"
+                                       href="{{ route('sms.schedules.edit', $batch->id) }}">
+                                        <i class="fa fa-pencil"></i> Edit
+                                    </a>
+                                    @if($batch->status === 'scheduled')
+                                        <form action="{{ route('sms.schedules.pause', $batch->id) }}" method="POST" class="mb-0 d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-warning">
+                                                <i class="fa fa-pause"></i> Pause
+                                            </button>
+                                        </form>
+                                    @else
+                                        <form action="{{ route('sms.schedules.resume', $batch->id) }}" method="POST" class="mb-0 d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-success">
+                                                <i class="fa fa-play"></i> Resume
+                                            </button>
+                                        </form>
+                                    @endif
+                                    <form action="{{ route('sms.schedules.cancel', $batch->id) }}" method="POST" class="mb-0 cancel-batch-form d-inline">
                                         @csrf
-                                        <button type="submit" class="btn btn-sm btn-warning">
-                                            <i class="fa fa-pause"></i> Pause
+                                        <button type="button" class="btn btn-sm btn-danger btn-cancel-batch"
+                                            data-total="{{ $batch->total }}"
+                                            data-datetime="{{ $batch->scheduled_at->format('M d, Y H:i') }}">
+                                            <i class="fa fa-times"></i> Cancel Batch
                                         </button>
                                     </form>
                                 @else
-                                    <form action="{{ route('sms.schedules.resume', $batch->id) }}" method="POST" class="mb-0 d-inline">
+                                    <form action="{{ route('sms.cancel-batch') }}" method="POST" class="mb-0 cancel-batch-form d-inline">
                                         @csrf
-                                        <button type="submit" class="btn btn-sm btn-success">
-                                            <i class="fa fa-play"></i> Resume
+                                        <input type="hidden" name="scheduled_at" value="{{ $batch->scheduled_at->format('Y-m-d H:i:s') }}">
+                                        <input type="hidden" name="message" value="{{ $batch->message_template }}">
+                                        <button type="button" class="btn btn-sm btn-danger btn-cancel-batch"
+                                            data-total="{{ $batch->total }}"
+                                            data-datetime="{{ $batch->scheduled_at->format('M d, Y H:i') }}">
+                                            <i class="fa fa-times"></i> Cancel Batch
                                         </button>
                                     </form>
                                 @endif
-                                <form action="{{ route('sms.schedules.cancel', $batch->id) }}" method="POST" class="mb-0 cancel-batch-form d-inline">
-                                    @csrf
-                                    <button type="button" class="btn btn-sm btn-danger btn-cancel-batch"
-                                        data-total="{{ $batch->total }}"
-                                        data-datetime="{{ $batch->scheduled_at->format('M d, Y H:i') }}">
-                                        <i class="fa fa-times"></i> Cancel Batch
-                                    </button>
-                                </form>
                             </span>
                         </li>
                         @endforeach
