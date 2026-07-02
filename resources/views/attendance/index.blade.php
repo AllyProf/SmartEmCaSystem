@@ -293,6 +293,7 @@
                 <span><i class="dot" style="background:#28a745;"></i> On time · inside HQ</span>
                 <span><i class="dot" style="background:#dc3545;"></i> Late · inside HQ</span>
                 <span><i class="dot" style="background:#fd7e14;"></i> Outside HQ</span>
+                <span><i class="dot" style="background:#6c757d;"></i> Signed out</span>
                 <span><i class="dot" style="background:#28a745;box-shadow:0 0 0 3px rgba(40,167,69,.35);"></i> Pulsing = still at HQ</span>
                 <span><i class="dot" style="background:#940000;"></i> HQ center</span>
             </div>
@@ -404,10 +405,24 @@
                                     
                                     <!-- Geofence & Method -->
                                     <small>
-                                        @if(!$log->location_verified_in)
-                                            <i class="fa fa-map-marker text-danger"></i> Outside HQ 
+                                        @if($log->signed_out_at)
+                                            @if($log->location_verified_in)
+                                                <i class="fa fa-sign-in text-success"></i> Signed in at HQ
+                                            @else
+                                                <i class="fa fa-sign-in text-danger"></i> Signed in outside HQ
+                                            @endif
+                                            @if($log->latitude_out && $log->longitude_out)
+                                                <br>
+                                                @if($log->location_verified_out)
+                                                    <i class="fa fa-sign-out text-success"></i> Signed out at HQ
+                                                @else
+                                                    <i class="fa fa-sign-out text-warning"></i> Signed out outside HQ
+                                                @endif
+                                            @endif
+                                        @elseif(!$log->location_verified_in)
+                                            <i class="fa fa-map-marker text-danger"></i> Outside HQ
                                         @else
-                                            <i class="fa fa-map-marker text-success"></i> inside HQ
+                                            <i class="fa fa-map-marker text-success"></i> Inside HQ now
                                         @endif
                                         | <i class="fa fa-fingerprint {{ $log->verification_type_in == 'fingerprint' ? 'text-primary' : 'text-info' }}"></i> {{ ucfirst(str_replace('_', ' ', $log->verification_type_in)) }}
                                     </small>
@@ -484,10 +499,24 @@
                             </div>
                             <div class="mt-1"><strong>Hours:</strong> {{ $log->working_hours }}</div>
                             <div class="mt-1 text-muted">
-                                @if(!$log->location_verified_in)
+                                @if($log->signed_out_at)
+                                    @if($log->location_verified_in)
+                                        <i class="fa fa-sign-in text-success"></i> Signed in at HQ
+                                    @else
+                                        <i class="fa fa-sign-in text-danger"></i> Signed in outside HQ
+                                    @endif
+                                    @if($log->latitude_out && $log->longitude_out)
+                                        <br>
+                                        @if($log->location_verified_out)
+                                            <i class="fa fa-sign-out text-success"></i> Signed out at HQ
+                                        @else
+                                            <i class="fa fa-sign-out text-warning"></i> Signed out outside HQ
+                                        @endif
+                                    @endif
+                                @elseif(!$log->location_verified_in)
                                     <i class="fa fa-map-marker text-danger"></i> Outside HQ
                                 @else
-                                    <i class="fa fa-map-marker text-success"></i> Inside HQ
+                                    <i class="fa fa-map-marker text-success"></i> Inside HQ now
                                 @endif
                             </div>
                         </div>
@@ -678,6 +707,22 @@
 
         const hoursClass = log.still_working ? 'text-info font-italic' : 'font-weight-bold';
 
+        let locationLabel = '';
+        if (!log.still_working) {
+            locationLabel = log.location_verified_in
+                ? '<i class="fa fa-sign-in text-success"></i> Signed in at HQ'
+                : '<i class="fa fa-sign-in text-danger"></i> Signed in outside HQ';
+            if (log.latitude_out && log.longitude_out) {
+                locationLabel += log.location_verified_out
+                    ? '<br><i class="fa fa-sign-out text-success"></i> Signed out at HQ'
+                    : '<br><i class="fa fa-sign-out text-warning"></i> Signed out outside HQ';
+            }
+        } else {
+            locationLabel = log.location_verified_in
+                ? '<i class="fa fa-map-marker text-success"></i> Inside HQ now'
+                : '<i class="fa fa-map-marker text-danger"></i> Outside HQ';
+        }
+
         return '<tr>'
             + '<td><strong>' + escapeHtml(log.name) + '</strong><br><small class="text-muted">ID: ' + escapeHtml(log.staff_id) + '</small></td>'
             + '<td><span class="badge badge-pill badge-info px-3"><i class="fa fa-sign-in"></i> ' + escapeHtml(log.signed_in) + '</span><br>'
@@ -686,9 +731,7 @@
             + '<td><span class="' + hoursClass + '">' + escapeHtml(log.working_hours) + '</span></td>'
             + '<td class="text-center align-middle">' + photoHtml + '</td>'
             + '<td>' + statusHtml + '<hr class="my-1"><small>'
-            + (log.location_verified_in
-                ? '<i class="fa fa-map-marker text-success"></i> inside HQ'
-                : '<i class="fa fa-map-marker text-danger"></i> Outside HQ')
+            + locationLabel
             + ' | <i class="fa fa-fingerprint text-info"></i> ' + escapeHtml(formatVerificationType(log.verification_type_in))
             + '</small>' + locationHtml + '</td></tr>';
     }
@@ -725,14 +768,28 @@
             ? escapeHtml(log.signed_out_full) + (log.is_forgot_sign_out ? ' <span class="badge badge-secondary ml-1">AUTO</span>' : '')
             : '<span class="text-warning">Still working</span>';
 
+        let locationLine = '';
+        if (!log.still_working) {
+            locationLine = log.location_verified_in
+                ? '<i class="fa fa-sign-in text-success"></i> Signed in at HQ'
+                : '<i class="fa fa-sign-in text-danger"></i> Signed in outside HQ';
+            if (log.latitude_out && log.longitude_out) {
+                locationLine += log.location_verified_out
+                    ? '<br><i class="fa fa-sign-out text-success"></i> Signed out at HQ'
+                    : '<br><i class="fa fa-sign-out text-warning"></i> Signed out outside HQ';
+            }
+        } else {
+            locationLine = log.location_verified_in
+                ? '<i class="fa fa-map-marker text-success"></i> Inside HQ now'
+                : '<i class="fa fa-map-marker text-danger"></i> Outside HQ';
+        }
+
         return '<div class="attendance-record-card"><div class="card-head"><div><strong>' + escapeHtml(log.name) + '</strong><br>'
             + '<small class="text-muted">ID: ' + escapeHtml(log.staff_id) + '</small></div><div class="text-right">' + badges + '</div></div>'
             + '<div class="small"><div><i class="fa fa-sign-in text-info"></i> <strong>In:</strong> ' + escapeHtml(log.signed_in_full) + '</div>'
             + '<div class="mt-1"><i class="fa fa-sign-out"></i> <strong>Out:</strong> ' + outLine + '</div>'
             + '<div class="mt-1"><strong>Hours:</strong> ' + escapeHtml(log.working_hours) + '</div>'
-            + '<div class="mt-1 text-muted">' + (log.location_verified_in
-                ? '<i class="fa fa-map-marker text-success"></i> Inside HQ'
-                : '<i class="fa fa-map-marker text-danger"></i> Outside HQ') + '</div></div>'
+            + '<div class="mt-1 text-muted">' + locationLine + '</div></div>'
             + '<div class="card-actions">' + actions + '</div></div>';
     }
 
@@ -770,11 +827,11 @@
             bindOverviewPopupEvents(pin, marker);
             bounds.push([pin.lat, pin.lng]);
 
-            if (pin.lat_out && pin.lng_out && (pin.lat_out !== pin.lat || pin.lng_out !== pin.lng)) {
-                L.marker([pin.lat_out, pin.lng_out], { icon: attendancePinIcon('#333', false) })
+            if (pin.lat_in && pin.lng_in && (pin.lat_in !== pin.lat || pin.lng_in !== pin.lng)) {
+                L.marker([pin.lat_in, pin.lng_in], { icon: attendancePinIcon('#17a2b8', false) })
                     .addTo(overviewMarkersLayer)
-                    .bindPopup('<strong>' + escapeHtml(pin.name) + '</strong><br>Sign out location');
-                bounds.push([pin.lat_out, pin.lng_out]);
+                    .bindPopup('<strong>' + escapeHtml(pin.name) + '</strong><br>Sign-in location');
+                bounds.push([pin.lat_in, pin.lng_in]);
             }
         });
 
@@ -886,6 +943,7 @@
     }
 
     function overviewPinColor(pin) {
+        if (!pin.still_working) return '#6c757d';
         if (!pin.inside_hq) return '#fd7e14';
         return pin.is_late ? '#dc3545' : '#28a745';
     }
@@ -905,22 +963,30 @@
             html += '<div class="text-muted small">ID: ' + escapeHtml(pin.staff_id) + '</div>';
         }
         html += '<div class="mt-1">';
-        html += '<span class="popup-badge" style="background:' + color + ';">'
-            + (pin.inside_hq ? 'Inside ' + escapeHtml(hqName) : 'Outside ' + escapeHtml(hqName)) + '</span>';
-        if (pin.is_late) {
-            html += '<span class="popup-badge" style="background:#dc3545;">Late</span>';
-        } else if (pin.inside_hq) {
-            html += '<span class="popup-badge" style="background:#28a745;">On time</span>';
+        if (!pin.still_working) {
+            html += '<span class="popup-badge" style="background:#6c757d;">Signed out</span>';
+            if (pin.lat_out && pin.lng_out) {
+                html += '<span class="popup-badge" style="background:' + color + ';">'
+                    + (pin.inside_hq ? 'Last seen inside ' : 'Last seen outside ') + escapeHtml(hqName) + '</span>';
+            } else {
+                html += '<span class="popup-badge" style="background:#6c757d;">Sign-out GPS not recorded</span>';
+            }
+        } else {
+            html += '<span class="popup-badge" style="background:' + color + ';">'
+                + (pin.inside_hq ? 'Inside ' + escapeHtml(hqName) : 'Outside ' + escapeHtml(hqName)) + '</span>';
+            if (pin.is_late) {
+                html += '<span class="popup-badge" style="background:#dc3545;">Late</span>';
+            } else if (pin.inside_hq) {
+                html += '<span class="popup-badge" style="background:#28a745;">On time</span>';
+            }
+            html += '<span class="popup-badge" style="background:#007bff;">At ' + escapeHtml(hqName) + ' now</span>';
+            if (pin.last_seen_seconds !== null && pin.last_seen_seconds > 120) {
+                const mins = Math.max(1, Math.round(pin.last_seen_seconds / 60));
+                html += '<span class="popup-badge" style="background:#6c757d;">GPS offline · last seen ' + mins + 'm</span>';
+            }
         }
         if (pin.forgot_sign_out) {
             html += '<span class="popup-badge" style="background:#6c757d;">Forgot sign-out</span>';
-        }
-        if (pin.still_working) {
-            html += '<span class="popup-badge" style="background:#007bff;">At ' + escapeHtml(hqName) + ' now</span>';
-        }
-        if (pin.still_working && pin.last_seen_seconds !== null && pin.last_seen_seconds > 120) {
-            const mins = Math.max(1, Math.round(pin.last_seen_seconds / 60));
-            html += '<span class="popup-badge" style="background:#6c757d;">GPS offline · last seen ' + mins + 'm</span>';
         }
         if (pin.gps_flagged) {
             html += '<span class="popup-badge" style="background:#6f42c1;">GPS flagged</span>';
@@ -931,7 +997,10 @@
         if (pin.signed_out) {
             html += '<div class="small"><i class="fa fa-sign-out"></i> Out: ' + escapeHtml(pin.signed_out) + '</div>';
         }
-        html += '<div class="small text-muted">' + pin.distance_m + 'm from ' + escapeHtml(hqName) + ' center</div>';
+        const locationLabel = !pin.still_working && pin.lat_out && pin.lng_out
+            ? 'Sign-out location'
+            : (!pin.still_working ? 'Sign-in location (no sign-out GPS)' : 'Current location');
+        html += '<div class="small text-muted">' + locationLabel + ' · ' + pin.distance_m + 'm from ' + escapeHtml(hqName) + ' center</div>';
         if (pin.photo_url) {
             html += '<img src="' + escapeHtml(pin.photo_url) + '" class="popup-photo-thumb overview-popup-photo" alt="Sign-in photo" data-pin-id="' + pin.id + '">';
             html += '<button type="button" class="btn btn-sm btn-danger btn-block overview-popup-photo-btn" data-pin-id="' + pin.id + '">'

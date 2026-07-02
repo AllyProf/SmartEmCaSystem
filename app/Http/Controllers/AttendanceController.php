@@ -211,9 +211,25 @@ class AttendanceController extends Controller
         $mapPins = collect($filteredResults)
             ->filter(fn ($att) => $att->latitude_in && $att->longitude_in)
             ->map(function ($att) use ($geofence, $latestPings) {
-                $lat = (float) $att->latitude_in;
-                $lng = (float) $att->longitude_in;
+                $latIn = (float) $att->latitude_in;
+                $lngIn = (float) $att->longitude_in;
+                $signedOut = (bool) $att->signed_out_at;
                 $ping = $latestPings->get($att->user_id);
+
+                if ($signedOut && $att->latitude_out && $att->longitude_out) {
+                    $lat = (float) $att->latitude_out;
+                    $lng = (float) $att->longitude_out;
+                    $insideHq = $geofence->isWithinHq($lat, $lng);
+                } elseif (!$signedOut && $ping && $ping->captured_at && $ping->captured_at->gt(now()->subMinutes(30))) {
+                    $lat = (float) $ping->latitude;
+                    $lng = (float) $ping->longitude;
+                    $insideHq = $geofence->isWithinHq($lat, $lng);
+                } else {
+                    $lat = $latIn;
+                    $lng = $lngIn;
+                    $insideHq = (bool) $att->location_verified_in;
+                }
+
                 $lastSeenSeconds = ($ping && $ping->captured_at) ? now()->diffInSeconds($ping->captured_at) : null;
 
                 return [
@@ -222,6 +238,8 @@ class AttendanceController extends Controller
                     'staff_id' => $att->user->staff_id ?? '',
                     'lat' => $lat,
                     'lng' => $lng,
+                    'lat_in' => $latIn,
+                    'lng_in' => $lngIn,
                     'lat_out' => $att->latitude_out ? (float) $att->latitude_out : null,
                     'lng_out' => $att->longitude_out ? (float) $att->longitude_out : null,
                     'signed_in' => Carbon::parse($att->signed_in_at)->format('h:i A'),
@@ -230,8 +248,9 @@ class AttendanceController extends Controller
                         ? Carbon::parse($att->signed_out_at)->format('h:i A')
                         : null,
                     'is_late' => (bool) $att->is_late,
-                    'inside_hq' => (bool) $att->location_verified_in,
-                    'still_working' => !$att->signed_out_at,
+                    'inside_hq' => $insideHq,
+                    'inside_hq_at_sign_in' => (bool) $att->location_verified_in,
+                    'still_working' => !$signedOut,
                     'auto_signed_out' => (bool) $att->auto_signed_out,
                     'forgot_sign_out' => (bool) $att->auto_signed_out,
                     'distance_m' => (int) round($geofence->distanceFromHq($lat, $lng)),
@@ -296,6 +315,7 @@ class AttendanceController extends Controller
             'is_overdue' => (bool) $log->is_overdue,
             'is_forgot_sign_out' => (bool) $log->is_forgot_sign_out,
             'location_verified_in' => (bool) $log->location_verified_in,
+            'location_verified_out' => $log->location_verified_out !== null ? (bool) $log->location_verified_out : null,
             'verification_type_in' => $log->verification_type_in,
             'photo_url' => $log->photo_in ? $log->photoInUrl() : null,
             'latitude_in' => $log->latitude_in,
