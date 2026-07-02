@@ -102,6 +102,11 @@
                                         <i class="fa fa-globe"></i> All
                                     </label>
                                 </div>
+                                @if(!(auth()->user()?->isSuperAdmin() || auth()->user()?->isCeo()))
+                                    <small class="text-muted d-block mt-2">
+                                        Bulk SMS to <strong>All</strong> customers is restricted to Super Admin / CEO.
+                                    </small>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -157,6 +162,13 @@
                         <label class="control-label">Message <span class="text-danger">*</span></label>
                         <textarea class="form-control" name="message" id="message" rows="5" placeholder="Enter your message here..." required>{{ old('message') }}</textarea>
                         <small class="form-text text-muted">Use {name} for customer name, {year} for current year</small>
+                        <div class="mt-2 small text-muted" id="smsMetrics">
+                            <strong>Length:</strong> <span id="smsChars">0</span> chars
+                            <span class="mx-2">·</span>
+                            <strong>Parts:</strong> <span id="smsParts">1</span>
+                            <span class="mx-2">·</span>
+                            <strong>Encoding:</strong> <span id="smsEncoding">GSM-7</span>
+                        </div>
                     </div>
 
                     <!-- Scheduling Options -->
@@ -275,6 +287,7 @@
             }
 
             updateScheduleUI();
+            updateSmsMetrics();
         }
 
         // Update selected count
@@ -338,6 +351,34 @@
             $('#message').val('');
         });
 
+        function isGsm7(text) {
+            // Practical estimation: treat non-ASCII as Unicode.
+            for (var i = 0; i < text.length; i++) {
+                if (text.charCodeAt(i) > 127) return false;
+            }
+            return true;
+        }
+
+        function smsPartsFor(text) {
+            var gsm7 = isGsm7(text);
+            var single = gsm7 ? 160 : 70;
+            var multi = gsm7 ? 153 : 67;
+            var len = text.length;
+            if (len <= single) return { parts: 1, encoding: gsm7 ? 'GSM-7' : 'Unicode' };
+            return { parts: Math.ceil(len / multi), encoding: gsm7 ? 'GSM-7' : 'Unicode' };
+        }
+
+        function updateSmsMetrics() {
+            var text = ($('#message').val() || '').toString();
+            var metrics = smsPartsFor(text);
+            $('#smsChars').text(text.length);
+            $('#smsParts').text(metrics.parts);
+            $('#smsEncoding').text(metrics.encoding);
+        }
+
+        $('#message').on('input', updateSmsMetrics);
+        updateSmsMetrics();
+
         // Handle scheduled checkbox change
         $('#is_scheduled').on('change', function() {
             if ($(this).is(':checked')) {
@@ -348,6 +389,7 @@
                 $('#scheduled_at').removeAttr('required').val('');
             }
             updateScheduleUI();
+            updateSmsMetrics();
         });
 
         function updateScheduleUI() {

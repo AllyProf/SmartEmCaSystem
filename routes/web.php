@@ -49,6 +49,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sms', [SmsController::class, 'index'])->name('sms.index');
     Route::get('/sms/create', [SmsController::class, 'create'])->name('sms.create');
     Route::post('/sms', [SmsController::class, 'store'])->name('sms.store');
+    Route::get('/sms/schedules/{schedule}/edit', [SmsController::class, 'editSchedule'])->name('sms.schedules.edit');
+    Route::put('/sms/schedules/{schedule}', [SmsController::class, 'updateSchedule'])->name('sms.schedules.update');
+    Route::post('/sms/schedules/{schedule}/pause', [SmsController::class, 'pauseSchedule'])->name('sms.schedules.pause');
+    Route::post('/sms/schedules/{schedule}/resume', [SmsController::class, 'resumeSchedule'])->name('sms.schedules.resume');
+    Route::post('/sms/schedules/{schedule}/cancel', [SmsController::class, 'cancelSchedule'])->name('sms.schedules.cancel');
     Route::post('/sms/cancel-batch', [SmsController::class, 'cancelBatch'])->name('sms.cancel-batch');
     Route::post('/sms/{sms}/cancel', [SmsController::class, 'cancel'])->name('sms.cancel');
     Route::get('/sms/logs', [SmsController::class, 'logs'])->name('sms.logs');

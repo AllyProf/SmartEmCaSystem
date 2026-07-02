@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SmsLog extends Model
 {
     protected $fillable = [
+        'schedule_id',
         'customer_id',
         'phone_number',
         'message',
@@ -34,5 +35,10 @@ class SmsLog extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sent_by');
+    }
+
+    public function schedule(): BelongsTo
+    {
+        return $this->belongsTo(SmsSchedule::class, 'schedule_id');
     }
 }

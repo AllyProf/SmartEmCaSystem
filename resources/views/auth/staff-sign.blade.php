@@ -63,6 +63,11 @@
             overflow-y: auto;
         }
         @media (max-width: 767px) {
+            /* Show more map area on small screens (auth view) */
+            body.sign-mode-auth .sign-panel {
+                max-height: 44vh;
+                padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+            }
             .sign-panel.sign-panel-guest {
                 max-height: 38vh;
                 overflow-y: auto;
@@ -217,6 +222,10 @@
         .map-fab.recenter { bottom: calc(220px + env(safe-area-inset-bottom)); }
         body.sign-mode-guest .map-fab.recenter { bottom: calc(42vh + env(safe-area-inset-bottom)); }
         body.sign-mode-guest .map-style-bar { bottom: calc(42vh + 12px + env(safe-area-inset-bottom)); }
+        @media (max-width: 767px) {
+            body.sign-mode-auth .map-fab.recenter { bottom: calc(44vh + env(safe-area-inset-bottom)); }
+            body.sign-mode-auth .map-style-bar { bottom: calc(44vh + 12px + env(safe-area-inset-bottom)); }
+        }
         .guest-location-badge { margin-bottom: 8px; font-size: 0.82rem; }
         .guest-where-line {
             font-size: 0.78rem;
@@ -608,6 +617,34 @@
         .auth-field {
             margin-bottom: 16px;
         }
+        .auth-field-label-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .auth-field-label-row label {
+            margin: 0;
+        }
+        .device-lock-chip-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            line-height: 1.2;
+            background: #fff0f0;
+            border: 1px solid #e8b4b4;
+            color: #842029;
+            white-space: nowrap;
+        }
+        .device-lock-chip-inline .fa {
+            font-size: 0.75rem;
+            color: #dc3545;
+        }
         .sign-panel-guest .auth-field {
             margin-bottom: 12px;
         }
@@ -759,6 +796,8 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.15);
             white-space: nowrap;
         }
+        /* Clean overlay: auth users already see HQ in the panel */
+        body.sign-mode-auth .hq-chip { display: none; }
         .pulse-dot {
             width: 14px;
             height: 14px;
@@ -949,9 +988,7 @@
 
         @if(!$staffSignActive)
             <div class="auth-header auth-header-compact">
-                <div class="auth-header-icon"><i class="fa fa-id-badge"></i></div>
                 <div class="auth-header-text">
-                    <h4>Staff Attendance</h4>
                     <p>Enter your staff email. Sign in/out only at {{ $mapConfig['hq_name'] ?? 'EmCa HQ' }}.</p>
                 </div>
             </div>
@@ -973,7 +1010,7 @@
                 <i class="fa fa-location-arrow"></i>
                 <span id="guestDistanceText">Locating you on map...</span>
             </div>
-            <p class="guest-where-line" id="guestWhereLine">Allow location to see your live position and distance to {{ $mapConfig['hq_name'] ?? 'EmCa HQ' }}.</p>
+            <p class="guest-where-line" id="guestWhereLine" style="display:none;"></p>
 
             <p class="device-lock-chip device-lock-chip--warn" id="devicePolicyWarning">
                 <i class="fa fa-exclamation-triangle"></i>
@@ -983,12 +1020,14 @@
             <form action="{{ route('staff.sign.auth') }}" method="POST" class="auth-form" id="staffAuthForm">
                 @csrf
                 <input type="hidden" name="device_id" id="deviceIdField" value="">
-                <p class="device-lock-chip device-lock-chip--locked" id="deviceLockNotice" style="display:none;">
-                    <i class="fa fa-lock"></i>
-                    <span id="deviceLockNoticeText">Device locked</span>
-                </p>
                 <div class="auth-field">
-                    <label for="staffEmail">Staff email</label>
+                    <div class="auth-field-label-row">
+                        <label for="staffEmail">Staff email</label>
+                        <span class="device-lock-chip-inline" id="deviceLockNotice" style="display:none;">
+                            <i class="fa fa-lock"></i>
+                            <span id="deviceLockNoticeText">Locked</span>
+                        </span>
+                    </div>
                     <div class="auth-input-wrap">
                         <i class="fa fa-envelope field-icon"></i>
                         <input class="auth-input" type="email" id="staffEmail" name="email" placeholder="you@emca.tech" value="{{ old('email') }}" required autofocus autocomplete="email">

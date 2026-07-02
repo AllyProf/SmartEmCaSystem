@@ -131,6 +131,17 @@
             margin-top: 8px;
         }
     }
+
+    /* Bootstrap 4 doesn't support gap utilities */
+    .sms-page .scheduled-batch-actions > * + * {
+        margin-left: 8px;
+    }
+    @media (max-width: 767.98px) {
+        .sms-page .scheduled-batch-actions > * + * {
+            margin-left: 0;
+            margin-top: 8px;
+        }
+    }
 </style>
 @endpush
 
@@ -152,18 +163,40 @@
                             <span class="mb-2 mb-md-0">
                                 <strong>{{ $batch->total }}</strong> message(s) scheduled for
                                 <strong>{{ $batch->scheduled_at->format('M d, Y H:i') }}</strong>
-                                <span class="text-muted">· {{ Str::limit($batch->message, 50) }}</span>
+                                <span class="text-muted">· {{ Str::limit($batch->message_template, 50) }}</span>
+                                @if($batch->status === 'paused')
+                                    <span class="badge badge-secondary ml-2"><i class="fa fa-pause"></i> Paused</span>
+                                @endif
                             </span>
-                            <form action="{{ route('sms.cancel-batch') }}" method="POST" class="mb-0 cancel-batch-form">
-                                @csrf
-                                <input type="hidden" name="scheduled_at" value="{{ $batch->scheduled_at->format('Y-m-d H:i:s') }}">
-                                <input type="hidden" name="message" value="{{ $batch->message }}">
-                                <button type="button" class="btn btn-sm btn-danger btn-cancel-batch"
-                                    data-total="{{ $batch->total }}"
-                                    data-datetime="{{ $batch->scheduled_at->format('M d, Y H:i') }}">
-                                    <i class="fa fa-times"></i> Cancel Batch
-                                </button>
-                            </form>
+                            <span class="d-flex flex-wrap scheduled-batch-actions">
+                                <a class="btn btn-sm btn-secondary"
+                                   href="{{ route('sms.schedules.edit', $batch->id) }}">
+                                    <i class="fa fa-pencil"></i> Edit
+                                </a>
+                                @if($batch->status === 'scheduled')
+                                    <form action="{{ route('sms.schedules.pause', $batch->id) }}" method="POST" class="mb-0 d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-warning">
+                                            <i class="fa fa-pause"></i> Pause
+                                        </button>
+                                    </form>
+                                @else
+                                    <form action="{{ route('sms.schedules.resume', $batch->id) }}" method="POST" class="mb-0 d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="fa fa-play"></i> Resume
+                                        </button>
+                                    </form>
+                                @endif
+                                <form action="{{ route('sms.schedules.cancel', $batch->id) }}" method="POST" class="mb-0 cancel-batch-form d-inline">
+                                    @csrf
+                                    <button type="button" class="btn btn-sm btn-danger btn-cancel-batch"
+                                        data-total="{{ $batch->total }}"
+                                        data-datetime="{{ $batch->scheduled_at->format('M d, Y H:i') }}">
+                                        <i class="fa fa-times"></i> Cancel Batch
+                                    </button>
+                                </form>
+                            </span>
                         </li>
                         @endforeach
                     </ul>

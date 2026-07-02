@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\SmsLog;
+use App\Models\SmsSchedule;
 use App\Services\SmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -27,21 +28,13 @@ class SmsController extends Controller
             ->orderByRaw("CASE WHEN status = 'scheduled' AND scheduled_at IS NOT NULL THEN scheduled_at WHEN status = 'cancelled' THEN updated_at WHEN sent_at IS NOT NULL THEN sent_at ELSE created_at END DESC")
             ->paginate(50);
 
-        $scheduledBatches = SmsLog::where('status', 'scheduled')
+        $scheduledBatches = SmsSchedule::whereIn('status', ['scheduled', 'paused'])
             ->whereNotNull('scheduled_at')
-            ->get()
-            ->groupBy(fn ($sms) => $sms->scheduled_at->format('Y-m-d H:i:s') . '::' . md5($sms->message))
-            ->map(function ($group) {
-                $first = $group->first();
-
-                return (object) [
-                    'scheduled_at' => $first->scheduled_at,
-                    'message' => $first->message,
-                    'total' => $group->count(),
-                ];
-            })
-            ->sortByDesc(fn ($batch) => $batch->scheduled_at->timestamp)
-            ->values();
+            ->orderByDesc('scheduled_at')
+            ->withCount([
+                'logs as total' => fn ($q) => $q->where('status', 'scheduled'),
+            ])
+            ->get();
 
         return view('sms.index', compact('customers', 'smsLogs', 'scheduledBatches'));
     }
@@ -61,6 +54,13 @@ class SmsController extends Controller
      */
     public function store(Request $request)
     {
+        if ($request->send_to === 'all') {
+            $user = auth()->user();
+            if (!$user || (!$user->isSuperAdmin() && !$user->isCeo())) {
+                return back()->with('error', 'Only Super Admin or CEO can send/schedule SMS to ALL customers.')->withInput();
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             'send_to' => 'required|in:single,selected,all',
             'phone_number' => [
@@ -131,6 +131,23 @@ class SmsController extends Controller
             // Replace {year} with current year
             $message = str_replace('{year}', date('Y'), $message);
 
+            $schedule = null;
+            if ($isScheduled) {
+                $schedule = SmsSchedule::create([
+                    'send_to' => $sendTo,
+                    'message_template' => $message,
+                    'sms_type' => $smsType,
+                    'status' => 'scheduled',
+                    'scheduled_at' => $scheduledAt,
+                    'created_by' => auth()->id(),
+                    'meta' => $sendTo === 'selected'
+                        ? ['selected_customer_ids' => array_values($request->selected_customers ?? [])]
+                        : ($sendTo === 'single'
+                            ? ['customer_id' => $request->customer_id, 'phone_number' => $request->phone_number]
+                            : null),
+                ]);
+            }
+
             if ($sendTo === 'single') {
                 // Single SMS
                 $phoneNumber = $request->phone_number;
@@ -157,6 +174,7 @@ class SmsController extends Controller
 
                 if ($isScheduled) {
                     $smsLog = SmsLog::create([
+                        'schedule_id' => $schedule?->id,
                         'customer_id' => $customerId,
                         'phone_number' => $phoneNumber,
                         'message' => $message,
@@ -207,6 +225,7 @@ class SmsController extends Controller
 
                     if ($isScheduled) {
                         SmsLog::create([
+                            'schedule_id' => $schedule?->id,
                             'customer_id' => $customer->id,
                             'phone_number' => $customer->phone_number,
                             'message' => $personalizedMessage,
@@ -252,6 +271,7 @@ class SmsController extends Controller
 
                     if ($isScheduled) {
                         SmsLog::create([
+                            'schedule_id' => $schedule?->id,
                             'customer_id' => $customer->id,
                             'phone_number' => $customer->phone_number,
                             'message' => $personalizedMessage,
@@ -337,6 +357,193 @@ class SmsController extends Controller
 
         return redirect()->route('sms.index', ['status' => 'cancelled'])
             ->with('sms_cancelled', "{$count} SMS messages cancelled.");
+    }
+
+    public function editSchedule(SmsSchedule $schedule)
+    {
+        if (!in_array($schedule->status, ['scheduled', 'paused'], true)) {
+            return redirect()->route('sms.index')->with('error', 'Only scheduled/paused batches can be edited.');
+        }
+
+        $customers = collect();
+        $selectedCustomerIds = [];
+
+        if ($schedule->send_to === 'selected') {
+            $customers = Customer::orderBy('created_at', 'desc')->get();
+            $selectedCustomerIds = (array) ($schedule->meta['selected_customer_ids'] ?? []);
+        }
+
+        return view('sms.edit-schedule', compact('schedule', 'customers', 'selectedCustomerIds'));
+    }
+
+    public function updateSchedule(Request $request, SmsSchedule $schedule)
+    {
+        if (!in_array($schedule->status, ['scheduled', 'paused'], true)) {
+            return redirect()->route('sms.index')->with('error', 'Only scheduled/paused batches can be updated.');
+        }
+
+        $request->validate([
+            'message_template' => 'required|string|min:1|max:1000',
+            'sms_type' => 'required|string',
+            'scheduled_at' => 'required|date',
+            'include_new_customers' => 'nullable|boolean',
+            'selected_customers' => 'nullable|array',
+            'selected_customers.*' => 'exists:customers,id',
+        ]);
+
+        $template = str_replace('{year}', date('Y'), $request->message_template);
+        $scheduledAt = $request->scheduled_at;
+
+        $schedule->update([
+            'message_template' => $template,
+            'sms_type' => $request->sms_type,
+            'scheduled_at' => $scheduledAt,
+        ]);
+
+        if ($schedule->send_to === 'selected') {
+            $newIds = array_values(array_unique(array_map('intval', $request->input('selected_customers', []))));
+            if (empty($newIds)) {
+                return back()->with('error', 'Please select at least one customer.')->withInput();
+            }
+
+            $existingScheduledLogs = SmsLog::with('customer')
+                ->where('schedule_id', $schedule->id)
+                ->where('status', 'scheduled')
+                ->get();
+
+            $existingIds = $existingScheduledLogs
+                ->pluck('customer_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+
+            $toAdd = array_values(array_diff($newIds, $existingIds));
+            $toRemove = array_values(array_diff($existingIds, $newIds));
+
+            if (!empty($toRemove)) {
+                SmsLog::where('schedule_id', $schedule->id)
+                    ->where('status', 'scheduled')
+                    ->whereIn('customer_id', $toRemove)
+                    ->update(['status' => 'cancelled']);
+            }
+
+            if (!empty($toAdd)) {
+                $customersToAdd = Customer::whereIn('id', $toAdd)->get();
+
+                foreach ($customersToAdd as $customer) {
+                    $msg = $template;
+                    if ($customer->name) {
+                        $msg = str_replace('{name}', $customer->name, $msg);
+                    }
+
+                    SmsLog::create([
+                        'schedule_id' => $schedule->id,
+                        'customer_id' => $customer->id,
+                        'phone_number' => $customer->phone_number,
+                        'message' => $msg,
+                        'sms_type' => $request->sms_type,
+                        'status' => 'scheduled',
+                        'scheduled_at' => $scheduledAt,
+                        'sent_by' => auth()->id(),
+                    ]);
+                }
+            }
+
+            $schedule->update([
+                'meta' => array_merge((array) ($schedule->meta ?? []), [
+                    'selected_customer_ids' => $newIds,
+                ]),
+            ]);
+        }
+
+        // Update pending logs for this schedule.
+        $logs = SmsLog::where('schedule_id', $schedule->id)
+            ->where('status', 'scheduled')
+            ->get();
+
+        foreach ($logs as $log) {
+            $msg = $template;
+            if ($log->customer && $log->customer->name) {
+                $msg = str_replace('{name}', $log->customer->name, $msg);
+            }
+
+            $log->update([
+                'message' => $msg,
+                'sms_type' => $request->sms_type,
+                'scheduled_at' => $scheduledAt,
+            ]);
+        }
+
+        // If "all", optionally add newly registered customers immediately.
+        if ($schedule->send_to === 'all' && $request->boolean('include_new_customers')) {
+            $existingCustomerIds = SmsLog::where('schedule_id', $schedule->id)
+                ->whereNotNull('customer_id')
+                ->pluck('customer_id')
+                ->all();
+
+            $missingCustomers = Customer::query()
+                ->when(!empty($existingCustomerIds), fn ($q) => $q->whereNotIn('id', $existingCustomerIds))
+                ->get();
+
+            foreach ($missingCustomers as $customer) {
+                $msg = $template;
+                if ($customer->name) {
+                    $msg = str_replace('{name}', $customer->name, $msg);
+                }
+
+                SmsLog::create([
+                    'schedule_id' => $schedule->id,
+                    'customer_id' => $customer->id,
+                    'phone_number' => $customer->phone_number,
+                    'message' => $msg,
+                    'sms_type' => $request->sms_type,
+                    'status' => 'scheduled',
+                    'scheduled_at' => $scheduledAt,
+                    'sent_by' => auth()->id(),
+                ]);
+            }
+        }
+
+        return redirect()->route('sms.index')->with('success', 'Scheduled SMS batch updated successfully.');
+    }
+
+    public function cancelSchedule(SmsSchedule $schedule)
+    {
+        if (!in_array($schedule->status, ['scheduled', 'paused'], true)) {
+            return redirect()->route('sms.index')->with('error', 'Only scheduled/paused batches can be cancelled.');
+        }
+
+        $schedule->update(['status' => 'cancelled']);
+
+        SmsLog::where('schedule_id', $schedule->id)
+            ->where('status', 'scheduled')
+            ->update(['status' => 'cancelled']);
+
+        return redirect()->route('sms.index', ['status' => 'cancelled'])
+            ->with('sms_cancelled', 'Scheduled batch cancelled.');
+    }
+
+    public function pauseSchedule(SmsSchedule $schedule)
+    {
+        if ($schedule->status !== 'scheduled') {
+            return back()->with('error', 'Only scheduled batches can be paused.');
+        }
+
+        $schedule->update(['status' => 'paused']);
+
+        return redirect()->route('sms.index')->with('success', 'Scheduled batch paused.');
+    }
+
+    public function resumeSchedule(SmsSchedule $schedule)
+    {
+        if ($schedule->status !== 'paused') {
+            return back()->with('error', 'Only paused batches can be resumed.');
+        }
+
+        $schedule->update(['status' => 'scheduled']);
+
+        return redirect()->route('sms.index')->with('success', 'Scheduled batch resumed.');
     }
 
     /**

@@ -295,6 +295,11 @@
             displayLat = targetLat;
             displayLng = targetLng;
             if (userMarker) userMarker.setOpacity(1);
+            // Make the map clearly show the real live location immediately.
+            followUser = true;
+            if (map) {
+                map.setView([targetLat, targetLng], 17, { animate: false });
+            }
         }
 
         if (accuracyCircle && currentAccuracy) accuracyCircle.setRadius(Math.min(currentAccuracy, 80));
@@ -433,12 +438,8 @@
         if (targetLat === null || currentDistance === null) return;
 
         if (guestLine) {
-            const distLabel = isInside
-                ? `inside ${hqName} (${Math.round(currentDistance)}m)`
-                : `${Math.round(currentDistance)}m from ${hqName}`;
-            guestLine.innerHTML = isWalking
-                ? `<i class="fa fa-street-view" style="color:#007bff;"></i> Walking — you are ${distLabel}`
-                : `<i class="fa fa-map-marker"></i> Your position on map — ${distLabel}`;
+            // Keep guest hint hidden for a cleaner UI.
+            guestLine.style.display = 'none';
         }
         if (statusText && isAuthenticated && !isSignedIn) {
             statusText.textContent = isInside
@@ -875,6 +876,7 @@
     }
 
     if (navigator.geolocation) {
+        // Initialize map, then lock view onto first real GPS fix.
         initMap(mapConfig.hq_latitude, mapConfig.hq_longitude);
         updateGpsChip('searching', 'Finding location...');
         navigator.geolocation.getCurrentPosition(onPosition, onPositionError, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
