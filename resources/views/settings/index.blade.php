@@ -80,15 +80,21 @@
         <div class="col-lg-6 settings-section">
             <div class="tile">
                 <h3 class="tile-title"><i class="fa fa-clock-o"></i> Working Hours</h3>
-                <p class="settings-hint">Sign-in after arrival + grace minutes is marked <strong>Late</strong>. Sign-out before departure may be flagged early. Open sessions are <strong>auto closed at expected departure</strong> if staff forget to sign out.</p>
+                <p class="settings-hint">Sign-in after arrival + grace minutes is marked <strong>Late</strong>. Sign-out before departure may be flagged early. Open sessions are <strong>auto closed at expected departure</strong> if staff forget to sign out. Staff can only sign in between <strong>Allow sign-in from</strong> and <strong>Expected departure</strong>; outside that window the sign page waits for the next day.</p>
                 <div class="form-row">
-                    <div class="form-group col-md-6">
+                    <div class="form-group col-md-4">
+                        <label class="font-weight-bold">Allow sign-in from</label>
+                        <input type="time" name="allow_sign_in_time" class="form-control" value="{{ old('allow_sign_in_time', $allowSignInTime) }}" required>
+                        <small class="text-muted">Sign-in button activates at this time each working day</small>
+                    </div>
+                    <div class="form-group col-md-4">
                         <label class="font-weight-bold">Expected arrival</label>
                         <input type="time" name="expected_arrival_time" class="form-control" value="{{ old('expected_arrival_time', $expectedInTime) }}" required>
                     </div>
-                    <div class="form-group col-md-6">
+                    <div class="form-group col-md-4">
                         <label class="font-weight-bold">Expected departure</label>
                         <input type="time" name="expected_departure_time" class="form-control" value="{{ old('expected_departure_time', $expectedOutTime) }}" required>
+                        <small class="text-muted">Sign page closes after this time until tomorrow</small>
                     </div>
                 </div>
                 <div class="form-row">

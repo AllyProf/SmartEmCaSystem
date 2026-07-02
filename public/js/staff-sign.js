@@ -8,6 +8,7 @@
     const mapConfig = cfg.mapConfig;
     const hqName = mapConfig.hq_name || 'EmCa HQ';
     let isSignedIn = isAuthenticated && cfg.isSignedIn;
+    let signWindow = mapConfig.sign_window || {};
     const csrfToken = cfg.csrfToken;
     const routes = cfg.routes;
 
@@ -232,6 +233,139 @@
         }
     }
 
+    function canUseSignAction() {
+        if (!signWindow || signWindow.state === 'open') {
+            return true;
+        }
+        if (isSignedIn) {
+            return !!signWindow.sign_out_allowed;
+        }
+        return !!signWindow.sign_in_allowed;
+    }
+
+    function formatCountdown(ms) {
+        if (ms <= 0) return 'Opening now...';
+        const totalSec = Math.ceil(ms / 1000);
+        const hours = Math.floor(totalSec / 3600);
+        const mins = Math.floor((totalSec % 3600) / 60);
+        const secs = totalSec % 60;
+        if (hours > 0) {
+            return `Opens in ${hours}h ${mins}m`;
+        }
+        if (mins > 0) {
+            return `Opens in ${mins}m ${secs}s`;
+        }
+        return `Opens in ${secs}s`;
+    }
+
+    function applySignWindowUi() {
+        const banner = document.getElementById('signWindowBanner');
+        const panel = document.querySelector('.sign-panel');
+        const title = document.getElementById('signPanelTitle');
+        const statusText = document.getElementById('statusText');
+        const signBtn = document.getElementById('signActionBtn');
+        const signLabel = document.getElementById('signActionLabel');
+
+        if (!signWindow || !banner) {
+            return;
+        }
+
+        const inactive = signWindow.state === 'closed' || signWindow.state === 'non_working_day'
+            || (signWindow.state === 'before_open' && !isSignedIn);
+        const waiting = signWindow.state === 'before_open' || signWindow.state === 'closed' || signWindow.state === 'non_working_day';
+
+        if (waiting && (!isSignedIn || signWindow.state === 'closed' || signWindow.state === 'non_working_day')) {
+            banner.style.display = 'block';
+            banner.classList.toggle('closed', signWindow.state === 'closed' || signWindow.state === 'non_working_day');
+            let html = signWindow.message || 'Sign-in is not available right now.';
+            if (signWindow.opens_at) {
+                html += '<span class="opens-countdown" id="signOpensCountdown"></span>';
+            }
+            banner.innerHTML = html;
+        } else {
+            banner.style.display = 'none';
+            banner.innerHTML = '';
+        }
+
+        if (panel) {
+            panel.classList.toggle('sign-panel-inactive', inactive && !canUseSignAction());
+        }
+
+        if (title) {
+            if (signWindow.state === 'closed' || signWindow.state === 'non_working_day') {
+                title.textContent = 'Attendance Closed';
+            } else if (signWindow.state === 'before_open' && !isSignedIn) {
+                title.textContent = 'Waiting to Open';
+            } else {
+                title.textContent = isSignedIn ? 'Signed In' : 'Ready to Sign In';
+            }
+        }
+
+        if (statusText && isAuthenticated) {
+            if (signWindow.state === 'open') {
+                if (isSignedIn) {
+                    statusText.textContent = `Signed in. Sign-out open until ${signWindow.closes_at_label || mapConfig.expected_departure} today.`;
+                } else {
+                    statusText.textContent = `Sign-in is open until ${signWindow.closes_at_label || mapConfig.expected_departure}. Go to ${hqName} to sign in.`;
+                }
+            } else if (signWindow.state === 'before_open' && !isSignedIn) {
+                statusText.textContent = `Sign-in opens at ${mapConfig.allow_sign_in_time || signWindow.allow_sign_in_time}. Please wait.`;
+            } else if (signWindow.state === 'closed' || signWindow.state === 'non_working_day') {
+                statusText.textContent = signWindow.opens_at_label
+                    ? `Next sign-in: ${signWindow.opens_at_label}`
+                    : (signWindow.message || 'Attendance is closed for today.');
+            }
+        }
+
+        if (signLabel && !isSignedIn && signWindow.state === 'before_open') {
+            signLabel.textContent = 'Sign In (closed)';
+        } else if (signLabel) {
+            signLabel.textContent = isSignedIn ? 'Sign Out' : 'Sign In';
+        }
+
+        if (signBtn && !canUseSignAction()) {
+            signBtn.disabled = true;
+        }
+
+        updateOpensCountdown();
+    }
+
+    function updateOpensCountdown() {
+        const el = document.getElementById('signOpensCountdown');
+        if (!el || !signWindow?.opens_at) return;
+
+        const opensMs = new Date(signWindow.opens_at).getTime();
+        const diff = opensMs - Date.now();
+        el.textContent = formatCountdown(diff);
+
+        if (diff <= 0 && signWindow.state !== 'open') {
+            refreshSignWindowStatus();
+        }
+    }
+
+    async function refreshSignWindowStatus() {
+        if (!isAuthenticated || !routes?.status) return;
+
+        try {
+            const res = await fetch(routes.status, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            if (typeof data.is_signed_in === 'boolean') {
+                isSignedIn = data.is_signed_in;
+            }
+            if (data.sign_window) {
+                signWindow = data.sign_window;
+                applySignWindowUi();
+                updateUI();
+            }
+        } catch (e) {
+            // ignore transient network errors
+        }
+    }
+
     function updateUI() {
         const { badge, distanceText } = getDistanceElements();
         const etaText = document.getElementById('etaText');
@@ -264,7 +398,8 @@
 
         if (signBtn) {
             const signInBlocked = !isSignedIn && mapConfig.block_sign_in_non_working_days && mapConfig.is_non_working_day;
-            signBtn.disabled = signInBlocked || !isAuthenticated || !isInside;
+            const windowBlocked = !canUseSignAction();
+            signBtn.disabled = signInBlocked || windowBlocked || !isAuthenticated || !isInside;
         }
 
         if (hqCircle) {
@@ -799,6 +934,16 @@
     async function performSign() {
         if (!isAuthenticated || targetLat === null) return;
 
+        if (!canUseSignAction()) {
+            await Swal.fire({
+                icon: 'info',
+                title: 'Not available now',
+                text: signWindow.message || 'Sign-in/sign-out is closed for today.',
+                confirmButtonColor: '#940000',
+            });
+            return;
+        }
+
         const actionLabel = isSignedIn ? 'sign out' : 'sign in';
         const confirm = await Swal.fire({
             title: isSignedIn ? 'Sign Out?' : `Sign In at ${hqName}?`,
@@ -914,6 +1059,12 @@
                 banner.textContent = mapConfig.is_holiday ? 'Today is a public holiday.' : 'Today is a weekend.';
             }
         }
+    }
+
+    if (isAuthenticated) {
+        applySignWindowUi();
+        setInterval(updateOpensCountdown, 1000);
+        setInterval(refreshSignWindowStatus, 60000);
     }
 
     if (navigator.geolocation) {

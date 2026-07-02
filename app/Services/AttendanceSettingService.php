@@ -53,6 +53,119 @@ class AttendanceSettingService
         return $this->get('expected_departure_time', '17:00:00');
     }
 
+    public function allowSignInTime(): string
+    {
+        $time = (string) $this->get('allow_sign_in_time', '');
+
+        if ($time !== '' && preg_match('/^\d{2}:\d{2}/', $time)) {
+            return strlen($time) === 5 ? $time . ':00' : $time;
+        }
+
+        return $this->expectedArrivalTime();
+    }
+
+    /**
+     * @return array{
+     *     state: string,
+     *     sign_in_allowed: bool,
+     *     sign_out_allowed: bool,
+     *     page_active: bool,
+     *     message: string,
+     *     opens_at: string|null,
+     *     opens_at_label: string|null,
+     *     closes_at: string|null,
+     *     closes_at_label: string|null,
+     *     allow_sign_in_time: string,
+     *     expected_departure_time: string
+     * }
+     */
+    public function signWindowState(?Carbon $now = null, bool $hasOpenSession = false): array
+    {
+        $now ??= now();
+        $allowTime = $this->allowSignInTime();
+        $departureTime = $this->expectedDepartureTime();
+        $opensAt = Carbon::parse($now->toDateString() . ' ' . $allowTime);
+        $closesAt = Carbon::parse($now->toDateString() . ' ' . $departureTime);
+        $nextOpensAt = $this->nextSignInOpenTime($now);
+        $base = [
+            'allow_sign_in_time' => substr($allowTime, 0, 5),
+            'expected_departure_time' => substr($departureTime, 0, 5),
+            'opens_at' => null,
+            'opens_at_label' => null,
+            'closes_at' => $closesAt->toIso8601String(),
+            'closes_at_label' => $closesAt->format('h:i A'),
+        ];
+
+        if ($this->isNonWorkingDay($now)) {
+            $dayLabel = $this->isPublicHoliday($now) ? 'public holiday' : 'weekend / non-working day';
+
+            return array_merge($base, [
+                'state' => 'non_working_day',
+                'sign_in_allowed' => false,
+                'sign_out_allowed' => $hasOpenSession,
+                'page_active' => $hasOpenSession,
+                'message' => "Today is a {$dayLabel}. Sign-in opens on the next working day at " . $nextOpensAt->format('h:i A') . '.',
+                'opens_at' => $nextOpensAt->toIso8601String(),
+                'opens_at_label' => $nextOpensAt->format('D, d M Y h:i A'),
+            ]);
+        }
+
+        if ($now->lessThan($opensAt)) {
+            return array_merge($base, [
+                'state' => 'before_open',
+                'sign_in_allowed' => false,
+                'sign_out_allowed' => $hasOpenSession,
+                'page_active' => $hasOpenSession,
+                'message' => 'Sign-in opens today at ' . $opensAt->format('h:i A') . '. Please wait.',
+                'opens_at' => $opensAt->toIso8601String(),
+                'opens_at_label' => $opensAt->format('D, d M Y h:i A'),
+            ]);
+        }
+
+        if ($now->greaterThan($closesAt)) {
+            return array_merge($base, [
+                'state' => 'closed',
+                'sign_in_allowed' => false,
+                'sign_out_allowed' => false,
+                'page_active' => false,
+                'message' => 'Today\'s sign-in/sign-out is closed. Opens next at ' . $nextOpensAt->format('D, d M Y h:i A') . '.',
+                'opens_at' => $nextOpensAt->toIso8601String(),
+                'opens_at_label' => $nextOpensAt->format('D, d M Y h:i A'),
+            ]);
+        }
+
+        return array_merge($base, [
+            'state' => 'open',
+            'sign_in_allowed' => true,
+            'sign_out_allowed' => true,
+            'page_active' => true,
+            'message' => 'Sign-in is open until ' . $closesAt->format('h:i A') . ' today.',
+            'opens_at' => $opensAt->toIso8601String(),
+            'opens_at_label' => $opensAt->format('h:i A'),
+        ]);
+    }
+
+    public function nextSignInOpenTime(?Carbon $from = null): Carbon
+    {
+        $from ??= now();
+        $allowTime = $this->allowSignInTime();
+        $todayOpens = Carbon::parse($from->toDateString() . ' ' . $allowTime);
+
+        if ($from->lessThan($todayOpens) && !$this->isNonWorkingDay($from)) {
+            return $todayOpens;
+        }
+
+        $day = $from->copy()->addDay()->startOfDay();
+        for ($i = 0; $i < 21; $i++) {
+            if (!$this->isNonWorkingDay($day)) {
+                return Carbon::parse($day->toDateString() . ' ' . $allowTime);
+            }
+            $day->addDay();
+        }
+
+        return $todayOpens->copy()->addDay();
+    }
+
     public function lateGraceMinutes(): int
     {
         return max(0, (int) $this->get('late_grace_minutes', 10));
@@ -307,6 +420,7 @@ class AttendanceSettingService
             'hq_name' => $this->hqName(),
             'expected_arrival' => substr($this->expectedArrivalTime(), 0, 5),
             'expected_departure' => substr($this->expectedDepartureTime(), 0, 5),
+            'allow_sign_in_time' => substr($this->allowSignInTime(), 0, 5),
             'late_grace_minutes' => $this->lateGraceMinutes(),
             'block_sign_in_non_working_days' => $this->blockSignInOnNonWorkingDays(),
             'session_timeout_minutes' => $this->sessionTimeoutMinutes(),

@@ -40,8 +40,11 @@ class StaffSignController extends Controller
             request()->session()->put('staff_sign_last_activity', now());
         }
 
+        $mapConfig = $this->geofence->mapConfig();
+        $mapConfig['sign_window'] = $this->settings->signWindowState(now(), (bool) $attendance);
+
         return view('auth.staff-sign', [
-            'mapConfig' => $this->geofence->mapConfig(),
+            'mapConfig' => $mapConfig,
             'isSignedIn' => (bool) $attendance,
             'lastSignIn' => $attendance?->signed_in_at,
             'staffSignActive' => $staffSignActive,
@@ -257,6 +260,7 @@ class StaffSignController extends Controller
             'is_signed_in' => (bool) $attendance,
             'last_sign_in' => $attendance?->signed_in_at?->toIso8601String(),
             'server_time' => now()->toIso8601String(),
+            'sign_window' => $this->settings->signWindowState(now(), (bool) $attendance),
         ]);
     }
 
@@ -387,6 +391,11 @@ class StaffSignController extends Controller
         $deviceError = $this->devices->assertDevice($user, $request->input('device_id'), true, $platform);
         if ($deviceError) {
             return response()->json(['success' => false, 'message' => $deviceError], 403);
+        }
+
+        $ruleError = $this->rules->canSignOut($user);
+        if ($ruleError) {
+            return response()->json(['success' => false, 'message' => $ruleError], 400);
         }
 
         $attendance = $this->rules->openSession($user->id);

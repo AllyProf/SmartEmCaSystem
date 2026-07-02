@@ -30,6 +30,11 @@ class AttendanceRulesService
 
     public function canSignIn(User $user): ?string
     {
+        $window = $this->settings->signWindowState(null, (bool) $this->openSession($user->id));
+        if (!$window['sign_in_allowed']) {
+            return $window['message'];
+        }
+
         if ($this->settings->blockSignInOnNonWorkingDays() && $this->settings->isNonWorkingDay()) {
             if ($this->settings->isPublicHoliday()) {
                 return 'Sign-in is not allowed today — public holiday.';
@@ -44,6 +49,21 @@ class AttendanceRulesService
 
         if ($this->openSession($user->id)) {
             return 'You have an open attendance session. Sign out first.';
+        }
+
+        return null;
+    }
+
+    public function canSignOut(User $user): ?string
+    {
+        $window = $this->settings->signWindowState(null, true);
+
+        if (!$window['sign_out_allowed']) {
+            return $window['message'];
+        }
+
+        if (!$this->openSession($user->id)) {
+            return 'You must sign in before signing out.';
         }
 
         return null;

@@ -24,6 +24,7 @@ class SystemSettingsController extends Controller
         return view('settings.index', [
             'expectedInTime' => substr($this->settings->expectedArrivalTime(), 0, 5),
             'expectedOutTime' => substr($this->settings->expectedDepartureTime(), 0, 5),
+            'allowSignInTime' => substr($this->settings->allowSignInTime(), 0, 5),
             'hqLatitude' => $this->settings->hqLatitude(),
             'hqLongitude' => $this->settings->hqLongitude(),
             'geofenceRadius' => $this->settings->geofenceRadius(),
@@ -67,6 +68,7 @@ class SystemSettingsController extends Controller
         $request->validate([
             'expected_arrival_time' => 'required|date_format:H:i',
             'expected_departure_time' => 'required|date_format:H:i',
+            'allow_sign_in_time' => 'required|date_format:H:i',
             'hq_latitude' => 'required|numeric',
             'hq_longitude' => 'required|numeric',
             'hq_name' => 'required|string|max:80',
@@ -95,6 +97,7 @@ class SystemSettingsController extends Controller
 
         $this->settings->set('expected_arrival_time', $request->expected_arrival_time . ':00');
         $this->settings->set('expected_departure_time', $request->expected_departure_time . ':00');
+        $this->settings->set('allow_sign_in_time', $request->allow_sign_in_time . ':00');
         $this->settings->set('hq_latitude', $request->hq_latitude);
         $this->settings->set('hq_longitude', $request->hq_longitude);
         $this->settings->set('hq_name', trim($request->hq_name));

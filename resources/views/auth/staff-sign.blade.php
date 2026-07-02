@@ -202,6 +202,36 @@
             margin-top: 10px;
             line-height: 1.4;
         }
+        .sign-window-banner,
+        .non-working-banner {
+            display: none;
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+        .sign-window-banner.closed {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .sign-window-banner .opens-countdown {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            margin-top: 4px;
+            color: inherit;
+            opacity: 0.9;
+        }
+        .sign-panel.sign-panel-inactive .btn-sign-action {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
         .map-fab {
             position: fixed;
             right: 16px;
@@ -1054,7 +1084,8 @@
             </p>
 
             <div class="non-working-banner" id="nonWorkingBanner"></div>
-            <h4 class="mb-1 font-weight-bold" style="color:#940000;">
+            <div class="sign-window-banner" id="signWindowBanner"></div>
+            <h4 class="mb-1 font-weight-bold" style="color:#940000;" id="signPanelTitle">
                 {{ $isSignedIn ? 'Signed In' : 'Ready to Sign In' }}
             </h4>
             <p class="status-line" id="statusText">
