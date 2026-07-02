@@ -74,6 +74,7 @@ Route::middleware(['auth'])->group(function () {
     // Attendance (CEO view)
     Route::prefix('attendance')->name('attendance.')->group(function () {
         Route::get('/', [App\Http\Controllers\AttendanceController::class, 'index'])->name('index');
+        Route::get('/sync', [App\Http\Controllers\AttendanceController::class, 'sync'])->name('sync');
         Route::post('/settings', [App\Http\Controllers\SystemSettingsController::class, 'update'])->name('settings.save');
     });
 

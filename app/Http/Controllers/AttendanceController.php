@@ -4,9 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Setting;
 use App\Models\StaffAttendance;
-use App\Models\User;
 use App\Services\AttendanceGeofenceService;
 use App\Services\AttendanceRulesService;
+use App\Services\AttendanceSettingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -18,13 +18,48 @@ class AttendanceController extends Controller
      */
     public function index(Request $request)
     {
+        $data = $this->resolveAttendanceData($request);
+
+        return view('attendance.index', $data);
+    }
+
+    /**
+     * JSON payload for background sync on the attendance dashboard
+     */
+    public function sync(Request $request)
+    {
+        $data = $this->resolveAttendanceData($request);
+
+        return response()->json([
+            'server_time' => now()->format('H:i:s'),
+            'server_date' => now()->format('l, d M Y'),
+            'filter_period_label' => $data['filterPeriodLabel'],
+            'map_pin_count' => $data['mapPins']->count(),
+            'at_hq_now' => $data['mapPins']->filter(fn ($p) => $p['still_working'] && $p['inside_hq'])->count(),
+            'weekly_late_comers' => $data['weeklyLateComers']->map(fn ($s) => [
+                'name' => $s->name,
+                'frequency' => (int) $s->frequency,
+            ])->values(),
+            'weekly_early_arrivals' => $data['weeklyEarlyArrivals']->map(fn ($s) => [
+                'name' => $s->name,
+                'frequency' => (int) $s->frequency,
+            ])->values(),
+            'records' => collect($data['attendances'])->map(fn ($log) => $this->formatRecord($log))->values(),
+            'map_pins' => $data['mapPins'],
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function resolveAttendanceData(Request $request): array
+    {
         $date = $request->query('date', Carbon::today()->toDateString());
-        $filterType = $request->query('filter', 'daily'); // daily, weekly, monthly
-        $statusFilter = $request->query('status'); // late, overdue
-        
+        $filterType = $request->query('filter', 'daily');
+        $statusFilter = $request->query('status');
+
         $query = StaffAttendance::with('user');
 
-        // Apply Time Filters
         if ($filterType === 'weekly') {
             $query->whereBetween('signed_in_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
         } elseif ($filterType === 'monthly') {
@@ -37,51 +72,55 @@ class AttendanceController extends Controller
 
         $rules = app(AttendanceRulesService::class);
 
-        // Get Settings
         $expectedIn = Setting::where('key', 'expected_arrival_time')->first();
         $expectedInTime = $expectedIn ? $expectedIn->value : '08:00:00';
-        
+
         $expectedOut = Setting::where('key', 'expected_departure_time')->first();
         $expectedOutTime = $expectedOut ? $expectedOut->value : '17:00:00';
 
         $filteredResults = [];
-        
+
         foreach ($attendances as $att) {
             $att->is_late = $rules->isLate(Carbon::parse($att->signed_in_at));
-            
-            // Check Overdue (Not signed out and past expected departure)
+
             $att->is_overdue = false;
             if (!$att->signed_out_at) {
-                $nowTime = Carbon::now();
                 $departureDateTime = Carbon::parse($att->signed_in_at->format('Y-m-d') . ' ' . $expectedOutTime);
-                if ($nowTime->greaterThan($departureDateTime)) {
+                if (now()->greaterThan($departureDateTime)) {
                     $att->is_overdue = true;
                 }
             }
 
             $att->is_forgot_sign_out = (bool) $att->auto_signed_out;
 
-            // Working Hours Calculation
             if ($att->signed_out_at) {
                 $diff = $att->signed_in_at->diff($att->signed_out_at);
                 $att->working_hours = $diff->format('%h hours %i mins');
             } else {
-                $att->working_hours = 'Pending';
+                $diff = $att->signed_in_at->diff(now());
+                $att->working_hours = $diff->format('%h hours %i mins');
             }
 
-            // Apply Status Filters
-            if ($statusFilter === 'late' && !$att->is_late) continue;
-            if ($statusFilter === 'overdue' && !$att->is_overdue) continue;
-            if ($statusFilter === 'forgot' && !$att->is_forgot_sign_out) continue;
+            if ($statusFilter === 'late' && !$att->is_late) {
+                continue;
+            }
+            if ($statusFilter === 'overdue' && !$att->is_overdue) {
+                continue;
+            }
+            if ($statusFilter === 'forgot' && !$att->is_forgot_sign_out) {
+                continue;
+            }
 
             $filteredResults[] = $att;
         }
 
-        // Stats for the widgets
-        $weeklyLateComers = $this->getWeeklyStats('late', $expectedInTime);
+        $attendanceSettings = app(AttendanceSettingService::class);
+        $lateGraceMinutes = $attendanceSettings->lateGraceMinutes();
+        $lateAfterTime = Carbon::parse($expectedInTime)->addMinutes($lateGraceMinutes)->format('H:i:s');
+
+        $weeklyLateComers = $this->getWeeklyStats('late', $expectedInTime, $lateAfterTime);
         $weeklyEarlyArrivals = $this->getWeeklyStats('early', $expectedInTime);
 
-        $attendanceSettings = app(\App\Services\AttendanceSettingService::class);
         $geofence = app(AttendanceGeofenceService::class);
 
         $mapPins = collect($filteredResults)
@@ -121,13 +160,15 @@ class AttendanceController extends Controller
             default => Carbon::parse($date)->format('l, d M Y'),
         };
 
-        return view('attendance.index', [
+        return [
             'attendances' => $filteredResults,
             'mapPins' => $mapPins,
             'filterPeriodLabel' => $filterPeriodLabel,
             'date' => $date,
             'expectedInTime' => $expectedInTime,
             'expectedOutTime' => $expectedOutTime,
+            'lateGraceMinutes' => $lateGraceMinutes,
+            'lateAfterTime' => $lateAfterTime,
             'filterType' => $filterType,
             'statusFilter' => $statusFilter,
             'weeklyLateComers' => $weeklyLateComers,
@@ -140,25 +181,60 @@ class AttendanceController extends Controller
             'sessionTimeout' => $attendanceSettings->sessionTimeoutMinutes(),
             'weekendDays' => implode(',', $attendanceSettings->weekendDays()),
             'publicHolidays' => implode(', ', $attendanceSettings->publicHolidays()),
-        ]);
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatRecord(StaffAttendance $log): array
+    {
+        return [
+            'id' => $log->id,
+            'name' => $log->user->name,
+            'staff_id' => $log->user->staff_id ?? '',
+            'signed_in' => Carbon::parse($log->signed_in_at)->format('h:i A'),
+            'signed_in_full' => Carbon::parse($log->signed_in_at)->format('d M Y h:i A'),
+            'signed_in_date' => Carbon::parse($log->signed_in_at)->format('d M, Y'),
+            'signed_out' => $log->signed_out_at
+                ? Carbon::parse($log->signed_out_at)->format('h:i A')
+                : null,
+            'signed_out_full' => $log->signed_out_at
+                ? Carbon::parse($log->signed_out_at)->format('d M Y h:i A')
+                : null,
+            'still_working' => !$log->signed_out_at,
+            'working_hours' => $log->working_hours,
+            'is_late' => (bool) $log->is_late,
+            'is_overdue' => (bool) $log->is_overdue,
+            'is_forgot_sign_out' => (bool) $log->is_forgot_sign_out,
+            'location_verified_in' => (bool) $log->location_verified_in,
+            'verification_type_in' => $log->verification_type_in,
+            'photo_url' => $log->photo_in ? $log->photoInUrl() : null,
+            'latitude_in' => $log->latitude_in,
+            'longitude_in' => $log->longitude_in,
+            'latitude_out' => $log->latitude_out,
+            'longitude_out' => $log->longitude_out,
+            'path_trace' => $log->path_trace ?? [],
+        ];
     }
 
     /**
      * Get Stats for top employees
      */
-    private function getWeeklyStats($type, $threshold)
+    private function getWeeklyStats(string $type, string $expectedArrivalTime, ?string $lateAfterTime = null)
     {
         $startOfWeek = Carbon::now()->startOfWeek();
         $endOfWeek = Carbon::now()->endOfWeek();
 
-        $query = StaffAttendance::whereBetween('signed_in_at', [$startOfWeek, $endOfWeek])
+        $query = StaffAttendance::whereBetween('staff_attendances.signed_in_at', [$startOfWeek, $endOfWeek])
             ->join('users', 'staff_attendances.user_id', '=', 'users.id')
             ->select('users.name', DB::raw('count(*) as frequency'));
 
         if ($type === 'late') {
-            $query->whereRaw('TIME(signed_in_at) > ?', [$threshold]);
+            $cutoff = $lateAfterTime ?? $expectedArrivalTime;
+            $query->whereRaw('TIME(staff_attendances.signed_in_at) > ?', [$cutoff]);
         } else {
-            $query->whereRaw('TIME(signed_in_at) <= ?', [$threshold]);
+            $query->whereRaw('TIME(staff_attendances.signed_in_at) <= ?', [$expectedArrivalTime]);
         }
 
         return $query->groupBy('users.id', 'users.name')

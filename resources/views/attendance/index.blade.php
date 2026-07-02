@@ -135,11 +135,24 @@
         gap: 10px;
         margin-bottom: 10px;
     }
-    .attendance-record-card .card-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 10px;
+    .attendance-sync-badge {
+        font-size: 0.72rem;
+        color: rgba(255,255,255,0.85);
+        margin-top: 6px;
+    }
+    .attendance-sync-badge.syncing { opacity: 0.75; }
+    .attendance-sync-dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #28a745;
+        margin-right: 5px;
+        animation: attendanceSyncPulse 2s ease-in-out infinite;
+    }
+    @keyframes attendanceSyncPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.35; }
     }
     @media (min-width: 768px) {
         .attendance-overview-map { height: 400px; }
@@ -185,14 +198,15 @@
         <div class="tile p-3 text-center shadow-sm" style="background-color: #940000; color: #ffffff; border-radius: 10px; border-bottom: 5px solid #000000;">
             <p class="mb-1 text-uppercase small" style="letter-spacing: 1px; opacity: 0.8;">Current Server Time</p>
             <h2 id="liveClock" class="font-weight-bold mb-0" style="font-size: 2.2rem;">--:--:--</h2>
-            <p class="mb-0 small">{{ \Carbon\Carbon::today()->format('l, d M Y') }}</p>
+            <p id="serverDate" class="mb-0 small">{{ \Carbon\Carbon::today()->format('l, d M Y') }}</p>
+            <p id="syncStatus" class="attendance-sync-badge mb-0"><span class="attendance-sync-dot"></span>Live sync on</p>
         </div>
     </div>
 
     <div class="col-12 col-sm-6 col-lg-3 attendance-stat-col">
         <div class="tile p-3 shadow-sm" style="border-radius: 10px; border-left: 5px solid #940000; min-height: 125px;">
             <p class="text-uppercase small font-weight-bold mb-2" style="color: #940000; letter-spacing: 0.5px;">This Week's Late Comers</p>
-            <div class="px-1">
+            <div class="px-1" id="weeklyLateComersList">
                 @forelse($weeklyLateComers as $stat)
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="font-weight-bold text-dark" style="font-size: 0.9rem;">{{ $stat->name }}</span>
@@ -210,7 +224,7 @@
     <div class="col-12 col-sm-6 col-lg-3 attendance-stat-col">
         <div class="tile p-3 shadow-sm" style="border-radius: 10px; border-left: 5px solid #000000; min-height: 125px;">
             <p class="text-uppercase small font-weight-bold mb-2" style="color: #000000; letter-spacing: 0.5px;">Top Early Arrivals</p>
-            <div class="px-1">
+            <div class="px-1" id="weeklyEarlyArrivalsList">
                 @forelse($weeklyEarlyArrivals as $stat)
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <span class="font-weight-bold text-dark" style="font-size: 0.9rem;">{{ $stat->name }}</span>
@@ -235,10 +249,18 @@
                 </div>
                 <div style="width: 1px; background-color: rgba(255,255,255,0.2); height: 35px;"></div>
                 <div>
+                    <span class="d-block small text-muted">Late after</span>
+                    <span class="font-weight-bold" style="font-size: 1.1rem;">{{ \Carbon\Carbon::parse($lateAfterTime)->format('h:i A') }}</span>
+                </div>
+                <div style="width: 1px; background-color: rgba(255,255,255,0.2); height: 35px;"></div>
+                <div>
                     <span class="d-block small text-muted">Out</span>
                     <span class="font-weight-bold" style="font-size: 1.1rem;">{{ \Carbon\Carbon::parse($expectedOutTime)->format('h:i A') }}</span>
                 </div>
             </div>
+            @if($lateGraceMinutes > 0)
+                <p class="small text-muted mb-2">{{ $lateGraceMinutes }}-minute grace before late</p>
+            @endif
             <a href="{{ route('settings.index') }}" class="btn btn-sm btn-block text-white" style="background-color: #940000; border-radius: 5px;">
                 <i class="fa fa-cog"></i> SYSTEM SETTINGS
             </a>
@@ -252,7 +274,7 @@
             <div class="d-flex justify-content-between align-items-center flex-wrap attendance-overview-header p-3 pb-2">
                 <div>
                     <h3 class="title mb-1">HQ Sign-In Overview</h3>
-                    <p class="text-muted small mb-0">{{ $filterPeriodLabel }} · {{ $mapPins->count() }} location(s) on map</p>
+                    <p class="text-muted small mb-0"><span id="attendancePeriodLabel">{{ $filterPeriodLabel }}</span> · <span id="mapPinCount">{{ $mapPins->count() }}</span> location(s) on map</p>
                 </div>
                 <span class="badge badge-pill px-3 py-2" style="background:#940000;color:#fff;">
                     <i class="fa fa-building"></i> {{ $geofenceRadius }}m {{ $hqName }} zone
@@ -315,7 +337,7 @@
                             <th class="border-0">Status & Location</th>
                         </tr>
                     </thead>
-                    <tbody style="border-top: 3px solid #940000;">
+                    <tbody style="border-top: 3px solid #940000;" id="attendanceTableBody">
                         @forelse($attendances as $log)
                             <tr>
                                 <td>
@@ -343,10 +365,10 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if($log->working_hours == 'Pending')
-                                        <span class="text-info font-italic">Calculating...</span>
-                                    @else
+                                    @if($log->signed_out_at)
                                         <span class="font-weight-bold">{{ $log->working_hours }}</span>
+                                    @else
+                                        <span class="text-info font-italic working-hours-live" data-signed-in="{{ $log->signed_in_at->toIso8601String() }}">{{ $log->working_hours }}</span>
                                     @endif
                                 </td>
                                 <td class="text-center align-middle">
@@ -425,7 +447,7 @@
                 </table>
             </div>
 
-            <div class="attendance-cards-mobile px-1 pb-2">
+            <div class="attendance-cards-mobile px-1 pb-2" id="attendanceCardsMobile">
                 @forelse($attendances as $log)
                     <div class="attendance-record-card">
                         <div class="card-head">
@@ -559,11 +581,285 @@
         return div.innerHTML;
     }
 
+    const hqLat = {{ $hqLatitude }};
+    const hqLng = {{ $hqLongitude }};
+    const hqRadius = {{ $geofenceRadius }};
+    const hqName = @json($hqName);
+    const attendanceSyncUrl = @json(route('attendance.sync'));
+    let overviewPins = @json($mapPins);
+    let serverTimeOffsetMs = 0;
+    let syncInFlight = false;
+    let attendanceOverviewMap = null;
+    let overviewMarkersLayer = null;
+    let overviewHeatLayer = null;
+    let heatmapActive = false;
+    let attendanceLocationMap = null;
+    let attendanceMarkersLayer = null;
+
+    function serverNow() {
+        return new Date(Date.now() + serverTimeOffsetMs);
+    }
+
     function updateClock() {
-        const now = new Date();
+        const now = serverNow();
         const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         document.getElementById('liveClock').textContent = timeStr;
     }
+
+    function formatVerificationType(type) {
+        return String(type || '').replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    }
+
+    function renderWeeklyStats(containerId, items, badgeColor, emptyText) {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+
+        if (!items || !items.length) {
+            el.innerHTML = '<div class="text-center py-2"><span class="text-muted small italic">' + escapeHtml(emptyText) + '</span></div>';
+            return;
+        }
+
+        el.innerHTML = items.map(function (stat) {
+            return '<div class="d-flex justify-content-between align-items-center mb-1">'
+                + '<span class="font-weight-bold text-dark" style="font-size: 0.9rem;">' + escapeHtml(stat.name) + '</span>'
+                + '<span class="badge badge-pill text-white" style="background-color: ' + badgeColor + ';">'
+                + stat.frequency + ' times</span></div>';
+        }).join('');
+    }
+
+    function buildRecordRowHtml(log) {
+        let statusHtml = log.is_late
+            ? '<span class="badge badge-danger">Late</span>'
+            : '<span class="badge badge-success">On Time</span>';
+        if (log.is_overdue) {
+            statusHtml += ' <span class="badge badge-warning text-dark border border-warning" title="Forgot to sign out or working extra hours">OVERDUE</span>';
+        }
+        if (log.is_forgot_sign_out) {
+            statusHtml += ' <span class="badge badge-secondary" title="Auto closed at expected departure — SMS sent to staff and CEO">FORGOT SIGN-OUT</span>';
+        }
+
+        let outHtml = '';
+        if (log.signed_out) {
+            outHtml = '<span class="badge badge-pill badge-dark px-3"><i class="fa fa-sign-out"></i> ' + escapeHtml(log.signed_out) + '</span>';
+            if (log.is_forgot_sign_out) {
+                outHtml += '<br><span class="badge badge-secondary mt-1" title="System closed session — staff did not sign out">AUTO OUT</span>';
+            }
+        } else {
+            outHtml = '<span class="badge badge-pill badge-warning px-3 border border-warning text-dark">Still Working</span>';
+        }
+
+        let photoHtml = '<span class="text-muted small">—</span>';
+        if (log.photo_url) {
+            photoHtml = '<button type="button" class="btn btn-sm btn-outline-danger attendance-photo-btn p-0" title="View sign-in photo"'
+                + ' data-photo-url="' + escapeHtml(log.photo_url) + '"'
+                + ' data-staff-name="' + escapeHtml(log.name) + '"'
+                + ' data-signed-in="' + escapeHtml(log.signed_in_full) + '">'
+                + '<img src="' + escapeHtml(log.photo_url) + '" alt="Sign-in photo" class="attendance-photo-thumb"></button>';
+        }
+
+        let locationHtml = '<div class="text-muted small mt-1">No GPS recorded</div>';
+        if (log.latitude_in && log.longitude_in) {
+            const pathTrace = JSON.stringify(log.path_trace || []);
+            locationHtml = '<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-primary attendance-map-btn"'
+                + ' data-lat-in="' + log.latitude_in + '" data-lng-in="' + log.longitude_in + '"'
+                + ' data-lat-out="' + (log.latitude_out || '') + '" data-lng-out="' + (log.longitude_out || '') + '"'
+                + ' data-path-trace="' + escapeHtml(pathTrace) + '"'
+                + ' data-staff-name="' + escapeHtml(log.name) + '"'
+                + ' data-signed-in="' + escapeHtml(log.signed_in_full) + '"'
+                + ' data-signed-out="' + escapeHtml(log.signed_out_full || '') + '"'
+                + ' data-verified-in="' + (log.location_verified_in ? '1' : '0') + '">'
+                + '<i class="fa fa-map"></i> View sign location</button>'
+                + '<div class="text-muted small mt-1">In: ' + parseFloat(log.latitude_in).toFixed(5) + ', ' + parseFloat(log.longitude_in).toFixed(5);
+            if (log.latitude_out && log.longitude_out) {
+                locationHtml += '<br>Out: ' + parseFloat(log.latitude_out).toFixed(5) + ', ' + parseFloat(log.longitude_out).toFixed(5);
+            }
+            locationHtml += '</div></div>';
+        }
+
+        const hoursClass = log.still_working ? 'text-info font-italic' : 'font-weight-bold';
+
+        return '<tr>'
+            + '<td><strong>' + escapeHtml(log.name) + '</strong><br><small class="text-muted">ID: ' + escapeHtml(log.staff_id) + '</small></td>'
+            + '<td><span class="badge badge-pill badge-info px-3"><i class="fa fa-sign-in"></i> ' + escapeHtml(log.signed_in) + '</span><br>'
+            + '<small class="text-muted">' + escapeHtml(log.signed_in_date) + '</small></td>'
+            + '<td>' + outHtml + '</td>'
+            + '<td><span class="' + hoursClass + '">' + escapeHtml(log.working_hours) + '</span></td>'
+            + '<td class="text-center align-middle">' + photoHtml + '</td>'
+            + '<td>' + statusHtml + '<hr class="my-1"><small>'
+            + (log.location_verified_in
+                ? '<i class="fa fa-map-marker text-success"></i> inside HQ'
+                : '<i class="fa fa-map-marker text-danger"></i> Outside HQ')
+            + ' | <i class="fa fa-fingerprint text-info"></i> ' + escapeHtml(formatVerificationType(log.verification_type_in))
+            + '</small>' + locationHtml + '</td></tr>';
+    }
+
+    function buildRecordCardHtml(log) {
+        let badges = log.is_late
+            ? '<span class="badge badge-danger">Late</span>'
+            : '<span class="badge badge-success">On Time</span>';
+        if (log.is_overdue) badges += ' <span class="badge badge-warning text-dark">OVERDUE</span>';
+        if (log.is_forgot_sign_out) badges += ' <span class="badge badge-secondary">FORGOT SIGN-OUT</span>';
+
+        let actions = '';
+        if (log.photo_url) {
+            actions += '<button type="button" class="btn btn-sm btn-outline-danger attendance-photo-btn p-0"'
+                + ' data-photo-url="' + escapeHtml(log.photo_url) + '"'
+                + ' data-staff-name="' + escapeHtml(log.name) + '"'
+                + ' data-signed-in="' + escapeHtml(log.signed_in_full) + '">'
+                + '<img src="' + escapeHtml(log.photo_url) + '" alt="Photo" class="attendance-photo-thumb"></button>';
+        }
+        if (log.latitude_in && log.longitude_in) {
+            const pathTrace = JSON.stringify(log.path_trace || []);
+            actions += '<button type="button" class="btn btn-sm btn-outline-primary attendance-map-btn"'
+                + ' data-lat-in="' + log.latitude_in + '" data-lng-in="' + log.longitude_in + '"'
+                + ' data-lat-out="' + (log.latitude_out || '') + '" data-lng-out="' + (log.longitude_out || '') + '"'
+                + ' data-path-trace="' + escapeHtml(pathTrace) + '"'
+                + ' data-staff-name="' + escapeHtml(log.name) + '"'
+                + ' data-signed-in="' + escapeHtml(log.signed_in_full) + '"'
+                + ' data-signed-out="' + escapeHtml(log.signed_out_full || '') + '"'
+                + ' data-verified-in="' + (log.location_verified_in ? '1' : '0') + '">'
+                + '<i class="fa fa-map"></i> Location</button>';
+        }
+
+        let outLine = log.signed_out
+            ? escapeHtml(log.signed_out_full) + (log.is_forgot_sign_out ? ' <span class="badge badge-secondary ml-1">AUTO</span>' : '')
+            : '<span class="text-warning">Still working</span>';
+
+        return '<div class="attendance-record-card"><div class="card-head"><div><strong>' + escapeHtml(log.name) + '</strong><br>'
+            + '<small class="text-muted">ID: ' + escapeHtml(log.staff_id) + '</small></div><div class="text-right">' + badges + '</div></div>'
+            + '<div class="small"><div><i class="fa fa-sign-in text-info"></i> <strong>In:</strong> ' + escapeHtml(log.signed_in_full) + '</div>'
+            + '<div class="mt-1"><i class="fa fa-sign-out"></i> <strong>Out:</strong> ' + outLine + '</div>'
+            + '<div class="mt-1"><strong>Hours:</strong> ' + escapeHtml(log.working_hours) + '</div>'
+            + '<div class="mt-1 text-muted">' + (log.location_verified_in
+                ? '<i class="fa fa-map-marker text-success"></i> Inside HQ'
+                : '<i class="fa fa-map-marker text-danger"></i> Outside HQ') + '</div></div>'
+            + '<div class="card-actions">' + actions + '</div></div>';
+    }
+
+    function renderAttendanceRecords(records) {
+        const tbody = document.getElementById('attendanceTableBody');
+        const cards = document.getElementById('attendanceCardsMobile');
+        if (!tbody || !cards) return;
+
+        if (!records.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4">No records found matching your selection.</td></tr>';
+            cards.innerHTML = '<div class="text-center py-4 text-muted">No records found matching your selection.</div>';
+            return;
+        }
+
+        tbody.innerHTML = records.map(buildRecordRowHtml).join('');
+        cards.innerHTML = records.map(buildRecordCardHtml).join('');
+    }
+
+    function refreshOverviewMapPins(fitBounds) {
+        if (!attendanceOverviewMap) return;
+
+        if (overviewMarkersLayer) {
+            attendanceOverviewMap.removeLayer(overviewMarkersLayer);
+        }
+        overviewMarkersLayer = L.layerGroup().addTo(attendanceOverviewMap);
+
+        const bounds = [[hqLat, hqLng]];
+
+        overviewPins.forEach(function (pin) {
+            const color = overviewPinColor(pin);
+            const pulsing = pin.still_working && pin.inside_hq;
+            const marker = L.marker([pin.lat, pin.lng], { icon: attendancePinIcon(color, pulsing) })
+                .addTo(overviewMarkersLayer)
+                .bindPopup(buildOverviewPopup(pin));
+            bindOverviewPopupEvents(pin, marker);
+            bounds.push([pin.lat, pin.lng]);
+
+            if (pin.lat_out && pin.lng_out && (pin.lat_out !== pin.lat || pin.lng_out !== pin.lng)) {
+                L.marker([pin.lat_out, pin.lng_out], { icon: attendancePinIcon('#333', false) })
+                    .addTo(overviewMarkersLayer)
+                    .bindPopup('<strong>' + escapeHtml(pin.name) + '</strong><br>Sign out location');
+                bounds.push([pin.lat_out, pin.lng_out]);
+            }
+        });
+
+        if (fitBounds && bounds.length > 1) {
+            attendanceOverviewMap.fitBounds(L.latLngBounds(bounds), { padding: [32, 32], maxZoom: 18 });
+        }
+
+        if (heatmapActive && overviewHeatLayer) {
+            attendanceOverviewMap.removeLayer(overviewHeatLayer);
+            overviewHeatLayer = null;
+            const points = overviewPins.map(function (pin) {
+                return [pin.lat, pin.lng, pin.still_working ? 1.0 : 0.65];
+            });
+            if (points.length) {
+                overviewHeatLayer = L.heatLayer(points, {
+                    radius: 28,
+                    blur: 22,
+                    maxZoom: 18,
+                    gradient: { 0.2: '#ffe08a', 0.5: '#fd7e14', 0.8: '#dc3545', 1.0: '#940000' },
+                }).addTo(attendanceOverviewMap);
+            }
+        }
+
+        updateAtHqNowCount();
+    }
+
+    function applySyncPayload(data) {
+        if (data.server_time) {
+            const parts = data.server_time.split(':').map(Number);
+            const serverDate = new Date();
+            serverDate.setHours(parts[0], parts[1], parts[2], 0);
+            serverTimeOffsetMs = serverDate.getTime() - Date.now();
+            updateClock();
+        }
+        if (data.server_date) {
+            const dateEl = document.getElementById('serverDate');
+            if (dateEl) dateEl.textContent = data.server_date;
+        }
+
+        renderWeeklyStats('weeklyLateComersList', data.weekly_late_comers, '#940000', 'No late records this week');
+        renderWeeklyStats('weeklyEarlyArrivalsList', data.weekly_early_arrivals, '#000000', 'No early records this week');
+
+        const periodEl = document.getElementById('attendancePeriodLabel');
+        const pinCountEl = document.getElementById('mapPinCount');
+        if (periodEl) periodEl.textContent = data.filter_period_label || '';
+        if (pinCountEl) pinCountEl.textContent = data.map_pin_count || 0;
+
+        overviewPins = data.map_pins || [];
+        renderAttendanceRecords(data.records || []);
+        refreshOverviewMapPins();
+    }
+
+    function syncAttendanceData() {
+        if (syncInFlight || document.hidden) return;
+
+        syncInFlight = true;
+        const statusEl = document.getElementById('syncStatus');
+        if (statusEl) statusEl.classList.add('syncing');
+
+        const query = window.location.search || '';
+        fetch(attendanceSyncUrl + query, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        })
+            .then(function (res) {
+                if (!res.ok) throw new Error('Sync failed');
+                return res.json();
+            })
+            .then(function (data) {
+                applySyncPayload(data);
+                if (statusEl) {
+                    statusEl.innerHTML = '<span class="attendance-sync-dot"></span>Updated ' + serverNow().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
+            })
+            .catch(function () {
+                if (statusEl) {
+                    statusEl.innerHTML = '<span class="attendance-sync-dot" style="background:#ffc107;"></span>Sync paused — retrying';
+                }
+            })
+            .finally(function () {
+                syncInFlight = false;
+                if (statusEl) statusEl.classList.remove('syncing');
+            });
+    }
+
     setInterval(updateClock, 1000);
     updateClock();
 
@@ -575,17 +871,6 @@
         $('#attendancePhotoModalImage').attr('src', url);
         $('#attendancePhotoModal').modal('show');
     });
-
-    const hqLat = {{ $hqLatitude }};
-    const hqLng = {{ $hqLongitude }};
-    const hqRadius = {{ $geofenceRadius }};
-    const hqName = @json($hqName);
-    const overviewPins = @json($mapPins);
-    let attendanceLocationMap = null;
-    let attendanceMarkersLayer = null;
-    let attendanceOverviewMap = null;
-    let overviewHeatLayer = null;
-    let heatmapActive = false;
 
     function attendancePinIcon(color, pulsing) {
         const pulse = pulsing
@@ -716,30 +1001,9 @@
             icon: attendancePinIcon('#940000', false),
         }).addTo(attendanceOverviewMap).bindPopup('<strong>' + escapeHtml(hqName) + ' center</strong>');
 
-        const bounds = [[hqLat, hqLng]];
+        overviewMarkersLayer = L.layerGroup().addTo(attendanceOverviewMap);
+        refreshOverviewMapPins(true);
 
-        overviewPins.forEach(function (pin) {
-            const color = overviewPinColor(pin);
-            const pulsing = pin.still_working && pin.inside_hq;
-            const marker = L.marker([pin.lat, pin.lng], { icon: attendancePinIcon(color, pulsing) })
-                .addTo(attendanceOverviewMap)
-                .bindPopup(buildOverviewPopup(pin));
-            bindOverviewPopupEvents(pin, marker);
-            bounds.push([pin.lat, pin.lng]);
-
-            if (pin.lat_out && pin.lng_out && (pin.lat_out !== pin.lat || pin.lng_out !== pin.lng)) {
-                L.marker([pin.lat_out, pin.lng_out], { icon: attendancePinIcon('#333', false) })
-                    .addTo(attendanceOverviewMap)
-                    .bindPopup('<strong>' + escapeHtml(pin.name) + '</strong><br>Sign out location');
-                bounds.push([pin.lat_out, pin.lng_out]);
-            }
-        });
-
-        if (bounds.length > 1) {
-            attendanceOverviewMap.fitBounds(L.latLngBounds(bounds), { padding: [32, 32], maxZoom: 18 });
-        }
-
-        updateAtHqNowCount();
         setTimeout(function () { attendanceOverviewMap.invalidateSize(); }, 200);
     }
 
@@ -748,6 +1012,12 @@
         $('#toggleHeatmapBtn').on('click', toggleOverviewHeatmap);
         $(window).on('resize', function () {
             if (attendanceOverviewMap) attendanceOverviewMap.invalidateSize();
+        });
+
+        syncAttendanceData();
+        setInterval(syncAttendanceData, 30000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) syncAttendanceData();
         });
     });
 
