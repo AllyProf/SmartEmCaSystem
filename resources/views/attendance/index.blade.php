@@ -70,6 +70,38 @@
         width: 18px;
         height: 18px;
     }
+    .attendance-marker-icon {
+        background: transparent !important;
+        border: none !important;
+    }
+    .attendance-pin-marker {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transform: translate(-50%, calc(-100% - 2px));
+        width: max-content;
+        max-width: 120px;
+        pointer-events: none;
+    }
+    .attendance-pin-label {
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.25;
+        padding: 2px 8px;
+        margin-bottom: 3px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.97);
+        color: #222;
+        border: 1.5px solid var(--pin-color, #666);
+        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 120px;
+        pointer-events: auto;
+    }
     .attendance-pin-dot {
         width: 14px;
         height: 14px;
@@ -821,7 +853,7 @@
         overviewPins.forEach(function (pin) {
             const color = overviewPinColor(pin);
             const pulsing = pin.still_working && pin.inside_hq;
-            const marker = L.marker([pin.lat, pin.lng], { icon: attendancePinIcon(color, pulsing) })
+            const marker = L.marker([pin.lat, pin.lng], { icon: attendancePinIcon(color, pulsing, pin.name) })
                 .addTo(overviewMarkersLayer)
                 .bindPopup(buildOverviewPopup(pin));
             bindOverviewPopupEvents(pin, marker);
@@ -829,7 +861,7 @@
 
             if (pin.lat_in && pin.lng_in && pin.still_working
                 && (pin.lat_in !== pin.lat || pin.lng_in !== pin.lng)) {
-                L.marker([pin.lat_in, pin.lng_in], { icon: attendancePinIcon('#17a2b8', false) })
+                L.marker([pin.lat_in, pin.lng_in], { icon: attendancePinIcon('#17a2b8', false, pin.name + ' · in') })
                     .addTo(overviewMarkersLayer)
                     .bindPopup('<strong>' + escapeHtml(pin.name) + '</strong><br>Sign-in location');
                 bounds.push([pin.lat_in, pin.lng_in]);
@@ -932,16 +964,20 @@
         $('#attendancePhotoModal').modal('show');
     });
 
-    function attendancePinIcon(color, pulsing) {
+    function attendancePinIcon(color, pulsing, name) {
         const pulse = pulsing
             ? '<div class="attendance-pin-pulse"></div>'
             : '';
+        const labelHtml = name
+            ? '<span class="attendance-pin-label" style="--pin-color:' + color + '">' + escapeHtml(name) + '</span>'
+            : '';
         return L.divIcon({
-            className: '',
-            html: '<div class="attendance-pin-wrap">' + pulse
-                + '<div class="attendance-pin-dot" style="background:' + color + '"></div></div>',
-            iconSize: [18, 18],
-            iconAnchor: [9, 9],
+            className: 'attendance-marker-icon',
+            html: '<div class="attendance-pin-marker">' + labelHtml
+                + '<div class="attendance-pin-wrap">' + pulse
+                + '<div class="attendance-pin-dot" style="background:' + color + '"></div></div></div>',
+            iconSize: [0, 0],
+            iconAnchor: [0, 0],
         });
     }
 
@@ -1073,7 +1109,7 @@
         }).addTo(attendanceOverviewMap).bindPopup(escapeHtml(hqName) + ' · ' + hqRadius + 'm zone');
 
         L.marker([hqLat, hqLng], {
-            icon: attendancePinIcon('#940000', false),
+            icon: attendancePinIcon('#940000', false, hqName),
         }).addTo(attendanceOverviewMap).bindPopup('<strong>' + escapeHtml(hqName) + ' center</strong>');
 
         overviewMarkersLayer = L.layerGroup().addTo(attendanceOverviewMap);
