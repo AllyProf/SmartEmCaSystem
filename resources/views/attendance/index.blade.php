@@ -293,7 +293,7 @@
                 <span><i class="dot" style="background:#28a745;"></i> On time · inside HQ</span>
                 <span><i class="dot" style="background:#dc3545;"></i> Late · inside HQ</span>
                 <span><i class="dot" style="background:#fd7e14;"></i> Outside HQ</span>
-                <span><i class="dot" style="background:#6c757d;"></i> Signed out</span>
+                <span><i class="dot" style="background:#6c757d;"></i> Signed out · left HQ</span>
                 <span><i class="dot" style="background:#28a745;box-shadow:0 0 0 3px rgba(40,167,69,.35);"></i> Pulsing = still at HQ</span>
                 <span><i class="dot" style="background:#940000;"></i> HQ center</span>
             </div>
@@ -827,7 +827,8 @@
             bindOverviewPopupEvents(pin, marker);
             bounds.push([pin.lat, pin.lng]);
 
-            if (pin.lat_in && pin.lng_in && (pin.lat_in !== pin.lat || pin.lng_in !== pin.lng)) {
+            if (pin.lat_in && pin.lng_in && pin.still_working
+                && (pin.lat_in !== pin.lat || pin.lng_in !== pin.lng)) {
                 L.marker([pin.lat_in, pin.lng_in], { icon: attendancePinIcon('#17a2b8', false) })
                     .addTo(overviewMarkersLayer)
                     .bindPopup('<strong>' + escapeHtml(pin.name) + '</strong><br>Sign-in location');
@@ -842,8 +843,10 @@
         if (heatmapActive && overviewHeatLayer) {
             attendanceOverviewMap.removeLayer(overviewHeatLayer);
             overviewHeatLayer = null;
-            const points = overviewPins.map(function (pin) {
-                return [pin.lat, pin.lng, pin.still_working ? 1.0 : 0.65];
+            const points = overviewPins
+                .filter(function (pin) { return pin.still_working; })
+                .map(function (pin) {
+                return [pin.lat, pin.lng, 1.0];
             });
             if (points.length) {
                 overviewHeatLayer = L.heatLayer(points, {
@@ -964,13 +967,8 @@
         }
         html += '<div class="mt-1">';
         if (!pin.still_working) {
-            html += '<span class="popup-badge" style="background:#6c757d;">Signed out</span>';
-            if (pin.lat_out && pin.lng_out) {
-                html += '<span class="popup-badge" style="background:' + color + ';">'
-                    + (pin.inside_hq ? 'Last seen inside ' : 'Last seen outside ') + escapeHtml(hqName) + '</span>';
-            } else {
-                html += '<span class="popup-badge" style="background:#6c757d;">Sign-out GPS not recorded</span>';
-            }
+            html += '<span class="popup-badge" style="background:#6c757d;">Signed out · left HQ</span>';
+            html += '<span class="popup-badge" style="background:#fd7e14;">Outside ' + escapeHtml(hqName) + ' zone</span>';
         } else {
             html += '<span class="popup-badge" style="background:' + color + ';">'
                 + (pin.inside_hq ? 'Inside ' + escapeHtml(hqName) : 'Outside ' + escapeHtml(hqName)) + '</span>';
@@ -997,10 +995,10 @@
         if (pin.signed_out) {
             html += '<div class="small"><i class="fa fa-sign-out"></i> Out: ' + escapeHtml(pin.signed_out) + '</div>';
         }
-        const locationLabel = !pin.still_working && pin.lat_out && pin.lng_out
-            ? 'Sign-out location'
-            : (!pin.still_working ? 'Sign-in location (no sign-out GPS)' : 'Current location');
-        html += '<div class="small text-muted">' + locationLabel + ' · ' + pin.distance_m + 'm from ' + escapeHtml(hqName) + ' center</div>';
+        const locationLabel = !pin.still_working
+            ? 'Left HQ after sign-out'
+            : 'Current location';
+        html += '<div class="small text-muted">' + locationLabel + ' · sign-out GPS ' + pin.distance_m + 'm from ' + escapeHtml(hqName) + ' center</div>';
         if (pin.photo_url) {
             html += '<img src="' + escapeHtml(pin.photo_url) + '" class="popup-photo-thumb overview-popup-photo" alt="Sign-in photo" data-pin-id="' + pin.id + '">';
             html += '<button type="button" class="btn btn-sm btn-danger btn-block overview-popup-photo-btn" data-pin-id="' + pin.id + '">'
@@ -1042,8 +1040,10 @@
             return;
         }
 
-        const points = overviewPins.map(function (pin) {
-            return [pin.lat, pin.lng, pin.still_working ? 1.0 : 0.65];
+        const points = overviewPins
+            .filter(function (pin) { return pin.still_working; })
+            .map(function (pin) {
+            return [pin.lat, pin.lng, 1.0];
         });
 
         if (!points.length) return;

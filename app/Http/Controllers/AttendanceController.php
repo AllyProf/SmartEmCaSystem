@@ -232,12 +232,28 @@ class AttendanceController extends Controller
 
                 $lastSeenSeconds = ($ping && $ping->captured_at) ? now()->diffInSeconds($ping->captured_at) : null;
 
+                $actualLat = $lat;
+                $actualLng = $lng;
+                $mapLat = $lat;
+                $mapLng = $lng;
+
+                if ($signedOut) {
+                    $insideHq = false;
+                    if ($geofence->isWithinHq($actualLat, $actualLng)) {
+                        $outside = $geofence->pointOutsideGeofence($actualLat, $actualLng);
+                        $mapLat = $outside['lat'];
+                        $mapLng = $outside['lng'];
+                    }
+                }
+
                 return [
                     'id' => $att->id,
                     'name' => $att->user->name,
                     'staff_id' => $att->user->staff_id ?? '',
-                    'lat' => $lat,
-                    'lng' => $lng,
+                    'lat' => $mapLat,
+                    'lng' => $mapLng,
+                    'actual_lat' => $actualLat,
+                    'actual_lng' => $actualLng,
                     'lat_in' => $latIn,
                     'lng_in' => $lngIn,
                     'lat_out' => $att->latitude_out ? (float) $att->latitude_out : null,
@@ -253,7 +269,7 @@ class AttendanceController extends Controller
                     'still_working' => !$signedOut,
                     'auto_signed_out' => (bool) $att->auto_signed_out,
                     'forgot_sign_out' => (bool) $att->auto_signed_out,
-                    'distance_m' => (int) round($geofence->distanceFromHq($lat, $lng)),
+                    'distance_m' => (int) round($geofence->distanceFromHq($actualLat, $actualLng)),
                     'photo_url' => $att->photoInUrl(),
                     'gps_flagged' => (bool) $att->gps_flagged_in,
                     'last_seen_seconds' => $lastSeenSeconds,
