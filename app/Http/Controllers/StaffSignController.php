@@ -41,7 +41,12 @@ class StaffSignController extends Controller
         }
 
         $mapConfig = $this->geofence->mapConfig();
-        $mapConfig['sign_window'] = $this->settings->signWindowState(now(), (bool) $attendance);
+        $userId = $staffSignActive ? (int) Auth::id() : 0;
+        $mapConfig['sign_window'] = $this->settings->signWindowState(
+            now(),
+            (bool) $attendance,
+            $userId > 0 && $this->rules->hasCompletedSessionToday($userId)
+        );
 
         return view('auth.staff-sign', [
             'mapConfig' => $mapConfig,
@@ -255,12 +260,17 @@ class StaffSignController extends Controller
     public function status()
     {
         $attendance = $this->rules->openSession(Auth::id());
+        $userId = (int) Auth::id();
 
         return response()->json([
             'is_signed_in' => (bool) $attendance,
             'last_sign_in' => $attendance?->signed_in_at?->toIso8601String(),
             'server_time' => now()->toIso8601String(),
-            'sign_window' => $this->settings->signWindowState(now(), (bool) $attendance),
+            'sign_window' => $this->settings->signWindowState(
+                now(),
+                (bool) $attendance,
+                $this->rules->hasCompletedSessionToday($userId)
+            ),
         ]);
     }
 

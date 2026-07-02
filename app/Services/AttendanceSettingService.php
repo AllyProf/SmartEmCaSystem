@@ -79,7 +79,7 @@ class AttendanceSettingService
      *     expected_departure_time: string
      * }
      */
-    public function signWindowState(?Carbon $now = null, bool $hasOpenSession = false): array
+    public function signWindowState(?Carbon $now = null, bool $hasOpenSession = false, bool $completedSessionToday = false): array
     {
         $now ??= now();
         $allowTime = $this->allowSignInTime();
@@ -95,6 +95,18 @@ class AttendanceSettingService
             'closes_at' => $closesAt->toIso8601String(),
             'closes_at_label' => $closesAt->format('h:i A'),
         ];
+
+        if ($completedSessionToday && !$hasOpenSession) {
+            return array_merge($base, [
+                'state' => 'day_complete',
+                'sign_in_allowed' => false,
+                'sign_out_allowed' => false,
+                'page_active' => false,
+                'message' => 'Today\'s attendance is complete. Sign-in opens next at ' . $nextOpensAt->format('D, d M Y h:i A') . '.',
+                'opens_at' => $nextOpensAt->toIso8601String(),
+                'opens_at_label' => $nextOpensAt->format('D, d M Y h:i A'),
+            ]);
+        }
 
         if ($this->isNonWorkingDay($now)) {
             $dayLabel = $this->isPublicHoliday($now) ? 'public holiday' : 'weekend / non-working day';
@@ -122,7 +134,7 @@ class AttendanceSettingService
             ]);
         }
 
-        if ($now->greaterThan($closesAt)) {
+        if ($now->greaterThanOrEqualTo($closesAt)) {
             return array_merge($base, [
                 'state' => 'closed',
                 'sign_in_allowed' => false,

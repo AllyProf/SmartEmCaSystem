@@ -243,6 +243,10 @@
         return !!signWindow.sign_in_allowed;
     }
 
+    function isSignWindowWaiting() {
+        return ['before_open', 'closed', 'non_working_day', 'day_complete'].includes(signWindow?.state);
+    }
+
     function formatCountdown(ms) {
         if (ms <= 0) return 'Opening now...';
         const totalSec = Math.ceil(ms / 1000);
@@ -270,13 +274,13 @@
             return;
         }
 
-        const inactive = signWindow.state === 'closed' || signWindow.state === 'non_working_day'
+        const inactive = ['closed', 'non_working_day', 'day_complete'].includes(signWindow.state)
             || (signWindow.state === 'before_open' && !isSignedIn);
-        const waiting = signWindow.state === 'before_open' || signWindow.state === 'closed' || signWindow.state === 'non_working_day';
+        const waiting = ['before_open', 'closed', 'non_working_day', 'day_complete'].includes(signWindow.state);
 
-        if (waiting && (!isSignedIn || signWindow.state === 'closed' || signWindow.state === 'non_working_day')) {
+        if (waiting && (!isSignedIn || ['closed', 'non_working_day', 'day_complete'].includes(signWindow.state))) {
             banner.style.display = 'block';
-            banner.classList.toggle('closed', signWindow.state === 'closed' || signWindow.state === 'non_working_day');
+            banner.classList.toggle('closed', ['closed', 'non_working_day', 'day_complete'].includes(signWindow.state));
             let html = signWindow.message || 'Sign-in is not available right now.';
             if (signWindow.opens_at) {
                 html += '<span class="opens-countdown" id="signOpensCountdown"></span>';
@@ -292,8 +296,8 @@
         }
 
         if (title) {
-            if (signWindow.state === 'closed' || signWindow.state === 'non_working_day') {
-                title.textContent = 'Attendance Closed';
+            if (['closed', 'non_working_day', 'day_complete'].includes(signWindow.state)) {
+                title.textContent = signWindow.state === 'day_complete' ? 'Attendance Complete' : 'Attendance Closed';
             } else if (signWindow.state === 'before_open' && !isSignedIn) {
                 title.textContent = 'Waiting to Open';
             } else {
@@ -310,17 +314,19 @@
                 }
             } else if (signWindow.state === 'before_open' && !isSignedIn) {
                 statusText.textContent = `Sign-in opens at ${mapConfig.allow_sign_in_time || signWindow.allow_sign_in_time}. Please wait.`;
-            } else if (signWindow.state === 'closed' || signWindow.state === 'non_working_day') {
+            } else if (['closed', 'non_working_day', 'day_complete'].includes(signWindow.state)) {
                 statusText.textContent = signWindow.opens_at_label
                     ? `Next sign-in: ${signWindow.opens_at_label}`
                     : (signWindow.message || 'Attendance is closed for today.');
             }
         }
 
-        if (signLabel && !isSignedIn && signWindow.state === 'before_open') {
-            signLabel.textContent = 'Sign In (closed)';
-        } else if (signLabel) {
-            signLabel.textContent = isSignedIn ? 'Sign Out' : 'Sign In';
+        if (signLabel) {
+            if (!isSignedIn && ['before_open', 'closed', 'day_complete', 'non_working_day'].includes(signWindow.state)) {
+                signLabel.textContent = 'Sign In (closed)';
+            } else {
+                signLabel.textContent = isSignedIn ? 'Sign Out' : 'Sign In';
+            }
         }
 
         if (signBtn && !canUseSignAction()) {
@@ -425,6 +431,9 @@
         wasInside = isInside;
         updateLocationHints();
         refreshUserMarkerPopup();
+        if (isAuthenticated) {
+            applySignWindowUi();
+        }
     }
 
     function onPosition(pos) {
@@ -618,6 +627,9 @@
             guestLine.style.display = 'none';
         }
         if (statusText && isAuthenticated && !isSignedIn) {
+            if (isSignWindowWaiting()) {
+                return;
+            }
             statusText.textContent = isInside
                 ? `You are at ${hqName}. You can sign in now.`
                 : (isWalking ? `Walking to ${hqName}… follow the route on the map.` : `Go to ${hqName} to sign in. Your location updates live on the map.`);

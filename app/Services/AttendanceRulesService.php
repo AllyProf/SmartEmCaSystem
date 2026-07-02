@@ -20,6 +20,14 @@ class AttendanceRulesService
             ->exists();
     }
 
+    public function hasCompletedSessionToday(int $userId): bool
+    {
+        return StaffAttendance::where('user_id', $userId)
+            ->whereDate('signed_in_at', today())
+            ->whereNotNull('signed_out_at')
+            ->exists();
+    }
+
     public function openSession(int $userId): ?StaffAttendance
     {
         return StaffAttendance::where('user_id', $userId)
@@ -30,7 +38,11 @@ class AttendanceRulesService
 
     public function canSignIn(User $user): ?string
     {
-        $window = $this->settings->signWindowState(null, (bool) $this->openSession($user->id));
+        $window = $this->settings->signWindowState(
+            null,
+            (bool) $this->openSession($user->id),
+            $this->hasCompletedSessionToday($user->id)
+        );
         if (!$window['sign_in_allowed']) {
             return $window['message'];
         }
@@ -56,13 +68,18 @@ class AttendanceRulesService
 
     public function canSignOut(User $user): ?string
     {
-        $window = $this->settings->signWindowState(null, true);
+        $open = $this->openSession($user->id);
+        $window = $this->settings->signWindowState(
+            null,
+            (bool) $open,
+            $this->hasCompletedSessionToday($user->id)
+        );
 
         if (!$window['sign_out_allowed']) {
             return $window['message'];
         }
 
-        if (!$this->openSession($user->id)) {
+        if (!$open) {
             return 'You must sign in before signing out.';
         }
 
