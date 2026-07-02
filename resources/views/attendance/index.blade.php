@@ -918,6 +918,10 @@
         if (pin.still_working) {
             html += '<span class="popup-badge" style="background:#007bff;">At ' + escapeHtml(hqName) + ' now</span>';
         }
+        if (pin.still_working && pin.last_seen_seconds !== null && pin.last_seen_seconds > 120) {
+            const mins = Math.max(1, Math.round(pin.last_seen_seconds / 60));
+            html += '<span class="popup-badge" style="background:#6c757d;">GPS offline · last seen ' + mins + 'm</span>';
+        }
         if (pin.gps_flagged) {
             html += '<span class="popup-badge" style="background:#6f42c1;">GPS flagged</span>';
         }
@@ -933,6 +937,8 @@
             html += '<button type="button" class="btn btn-sm btn-danger btn-block overview-popup-photo-btn" data-pin-id="' + pin.id + '">'
                 + '<i class="fa fa-camera"></i> View photo</button>';
         }
+        html += '<a class="btn btn-sm btn-outline-secondary btn-block mt-2" target="_blank" rel="noopener" href="' + escapeHtml(@json(url('/attendance/journey')) + '/' + pin.id) + '">'
+            + '<i class="fa fa-map"></i> View journey</a>';
         html += '</div>';
         return html;
     }

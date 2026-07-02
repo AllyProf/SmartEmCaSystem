@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Setting;
 use App\Models\StaffAttendance;
+use App\Models\StaffLiveLocation;
 use App\Services\AttendanceGeofenceService;
 use App\Services\AttendanceRulesService;
 use App\Services\AttendanceSettingService;
@@ -46,6 +47,80 @@ class AttendanceController extends Controller
             ])->values(),
             'records' => collect($data['attendances'])->map(fn ($log) => $this->formatRecord($log))->values(),
             'map_pins' => $data['mapPins'],
+        ]);
+    }
+
+    public function journey(StaffAttendance $attendance)
+    {
+        $user = auth()->user();
+        if (!$user || (!$user->isSuperAdmin() && !$user->isCeo() && !$user->isHr())) {
+            abort(403);
+        }
+
+        $attendance->load('user');
+
+        $signedInAt = $attendance->signed_in_at ? Carbon::parse($attendance->signed_in_at) : null;
+        $signedOutAt = $attendance->signed_out_at ? Carbon::parse($attendance->signed_out_at) : null;
+        $end = $signedOutAt ?: now();
+
+        $trace = collect($attendance->path_trace ?? [])
+            ->map(function ($p) {
+                return [
+                    'lat' => isset($p['lat']) ? (float) $p['lat'] : null,
+                    'lng' => isset($p['lng']) ? (float) $p['lng'] : null,
+                    'speed' => isset($p['speed']) ? (float) $p['speed'] : null,
+                    'accuracy' => isset($p['accuracy']) ? (float) $p['accuracy'] : null,
+                    'timestamp' => isset($p['timestamp']) ? (int) $p['timestamp'] : null,
+                    'source' => 'trace',
+                ];
+            })
+            ->filter(fn ($p) => $p['lat'] !== null && $p['lng'] !== null)
+            ->values();
+
+        $pings = collect();
+        $latestPing = null;
+        if ($signedInAt) {
+            $pings = StaffLiveLocation::where('user_id', $attendance->user_id)
+                ->whereBetween('captured_at', [$signedInAt, $end])
+                ->orderBy('captured_at')
+                ->get()
+                ->map(function (StaffLiveLocation $loc) {
+                    return [
+                        'lat' => (float) $loc->latitude,
+                        'lng' => (float) $loc->longitude,
+                        'speed' => $loc->speed !== null ? (float) $loc->speed : null,
+                        'accuracy' => $loc->accuracy !== null ? (float) $loc->accuracy : null,
+                        'timestamp' => $loc->captured_at ? (int) ($loc->captured_at->timestamp * 1000) : null,
+                        'source' => 'ping',
+                    ];
+                });
+
+            $latestPing = StaffLiveLocation::where('user_id', $attendance->user_id)
+                ->orderByDesc('captured_at')
+                ->first();
+        }
+
+        // Merge trace + pings (avoid duplicates by timestamp+coords).
+        $points = $trace
+            ->merge($pings)
+            ->unique(function ($p) {
+                return ($p['timestamp'] ?? 0) . '::' . round((float) $p['lat'], 6) . '::' . round((float) $p['lng'], 6);
+            })
+            ->sortBy(fn ($p) => $p['timestamp'] ?? 0)
+            ->values();
+
+        $attendanceSettings = app(AttendanceSettingService::class);
+
+        return view('attendance.journey', [
+            'attendance' => $attendance,
+            'hqLatitude' => $attendanceSettings->hqLatitude(),
+            'hqLongitude' => $attendanceSettings->hqLongitude(),
+            'geofenceRadius' => $attendanceSettings->geofenceRadius(),
+            'hqName' => $attendanceSettings->hqName(),
+            'points' => $points,
+            'signedInAt' => $signedInAt,
+            'signedOutAt' => $signedOutAt,
+            'latestPing' => $latestPing,
         ]);
     }
 
@@ -123,11 +198,23 @@ class AttendanceController extends Controller
 
         $geofence = app(AttendanceGeofenceService::class);
 
+        $userIds = collect($filteredResults)->pluck('user_id')->filter()->unique()->values();
+        $latestPings = collect();
+        if ($userIds->isNotEmpty()) {
+            $latestPings = StaffLiveLocation::whereIn('user_id', $userIds)
+                ->orderByDesc('captured_at')
+                ->get()
+                ->groupBy('user_id')
+                ->map(fn ($group) => $group->first());
+        }
+
         $mapPins = collect($filteredResults)
             ->filter(fn ($att) => $att->latitude_in && $att->longitude_in)
-            ->map(function ($att) use ($geofence) {
+            ->map(function ($att) use ($geofence, $latestPings) {
                 $lat = (float) $att->latitude_in;
                 $lng = (float) $att->longitude_in;
+                $ping = $latestPings->get($att->user_id);
+                $lastSeenSeconds = ($ping && $ping->captured_at) ? now()->diffInSeconds($ping->captured_at) : null;
 
                 return [
                     'id' => $att->id,
@@ -150,6 +237,7 @@ class AttendanceController extends Controller
                     'distance_m' => (int) round($geofence->distanceFromHq($lat, $lng)),
                     'photo_url' => $att->photoInUrl(),
                     'gps_flagged' => (bool) $att->gps_flagged_in,
+                    'last_seen_seconds' => $lastSeenSeconds,
                 ];
             })
             ->values();

@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'staff.sign.session' => \App\Http\Middleware\StaffSignSessionTimeout::class,
             'staff.sign.verified' => \App\Http\Middleware\EnsureStaffSignVerified::class,
             'staff.sign.nocache' => \App\Http\Middleware\PreventStaffSignPageCache::class,
+            'tracking.role' => \App\Http\Middleware\EnsureTrackingRole::class,
         ]);
 
         $middleware->redirectGuestsTo(function (Request $request) {

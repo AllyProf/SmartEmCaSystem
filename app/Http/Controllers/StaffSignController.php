@@ -11,6 +11,7 @@ use App\Services\AttendanceSettingService;
 use App\Services\GpsSpoofDetectionService;
 use App\Services\ReverseGeocodeService;
 use App\Services\StaffDeviceService;
+use App\Models\StaffLiveLocation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -456,6 +457,40 @@ class StaffSignController extends Controller
             'gps_flagged' => $gpsAnalysis['flagged'],
             'timestamp' => Carbon::parse($attendance->signed_out_at)->toIso8601String(),
         ]);
+    }
+
+    public function pingLocation(Request $request)
+    {
+        $request->validate([
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+            'accuracy' => 'nullable|numeric',
+            'speed' => 'nullable|numeric',
+            'heading' => 'nullable|numeric',
+            'travel_mode' => 'nullable|string|max:24',
+            'timestamp' => 'nullable|integer',
+        ]);
+
+        $capturedAt = $request->input('timestamp')
+            ? Carbon::createFromTimestampMs((int) $request->timestamp)
+            : now();
+
+        StaffLiveLocation::create([
+            'user_id' => Auth::id(),
+            'latitude' => (float) $request->latitude,
+            'longitude' => (float) $request->longitude,
+            'accuracy' => $request->accuracy !== null ? (int) round((float) $request->accuracy) : null,
+            'speed' => $request->speed !== null ? (float) $request->speed : null,
+            'heading' => $request->heading !== null ? (int) round((float) $request->heading) : null,
+            'travel_mode' => $request->input('travel_mode'),
+            'captured_at' => $capturedAt,
+            'meta' => [
+                'device_id' => $request->input('device_id'),
+                'ua' => substr((string) $request->userAgent(), 0, 255),
+            ],
+        ]);
+
+        return response()->json(['success' => true]);
     }
 
     private function storePhoto(?string $base64, string $prefix, int $userId): ?string

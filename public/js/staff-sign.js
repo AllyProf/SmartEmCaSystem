@@ -11,7 +11,7 @@
     const csrfToken = cfg.csrfToken;
     const routes = cfg.routes;
 
-    let map, hqCircle, userMarker, accuracyCircle, routeLine, pathLine, osrmLine, watchId = null;
+    let map, hqCircle, userMarker, accuracyCircle, routeLine, pathLine, osrmLine, osrmOutlineLine, watchId = null;
     let displayLat = null, displayLng = null, targetLat = null, targetLng = null;
     let currentDistance = null, currentAccuracy = null, currentHeading = null, currentSpeed = null;
     let followUser = true, animFrame = null, pathPoints = [], gpsTrail = [];
@@ -26,6 +26,8 @@
     const MAX_PATH = 40;
     const WALK_SPEED = 0.35;
     const OFFLINE_KEY = 'smartemca_offline_sign_queue';
+    let lastPingAt = 0;
+    const PING_INTERVAL_MS = 15000;
 
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -124,10 +126,13 @@
             const data = await res.json();
             if (data.routes && data.routes[0]) {
                 const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                if (osrmOutlineLine) osrmOutlineLine.setLatLngs(coords);
                 osrmLine.setLatLngs(coords);
             }
         } catch (e) {
             if (routeLine) routeLine.setLatLngs([[fromLat, fromLng], [mapConfig.hq_latitude, mapConfig.hq_longitude]]);
+            if (osrmOutlineLine) osrmOutlineLine.setLatLngs([]);
+            if (osrmLine) osrmLine.setLatLngs([]);
         }
     }
 
@@ -160,9 +165,15 @@
             color: '#940000', fillColor: '#940000', fillOpacity: 0.12, weight: 2, radius: mapConfig.geofence_radius,
         }).addTo(map);
 
-        pathLine = L.polyline([], { color: '#007bff', weight: 5, opacity: 0.7 }).addTo(map);
-        routeLine = L.polyline([], { color: '#940000', weight: 2, opacity: 0.4, dashArray: '6 6' }).addTo(map);
-        osrmLine = L.polyline([], { color: '#940000', weight: 4, opacity: 0.85 }).addTo(map);
+        // short path preview (subtle)
+        pathLine = L.polyline([], { color: '#007bff', weight: 4, opacity: 0.25 }).addTo(map);
+
+        // fallback straight route (when OSRM unavailable)
+        routeLine = L.polyline([], { color: '#1f8a3b', weight: 6, opacity: 0.45 }).addTo(map);
+
+        // navigation-style route (bold with outline)
+        osrmOutlineLine = L.polyline([], { color: '#ffffff', weight: 10, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+        osrmLine = L.polyline([], { color: '#1f8a3b', weight: 7, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(map);
 
         userMarker = L.marker([lat, lng], {
             icon: L.divIcon({ className: '', html: userMarkerHtml(null, false), iconSize: [48, 48], iconAnchor: [24, 24] }),
@@ -327,6 +338,36 @@
 
         maybeRefreshPlaceName();
         fitMapToUserAndHq();
+
+        maybePingLiveLocation(pos);
+    }
+
+    async function maybePingLiveLocation(pos) {
+        if (!isAuthenticated || !routes.pingLocation) return;
+        const now = Date.now();
+        if (now - lastPingAt < PING_INTERVAL_MS) return;
+        if (targetLat === null || targetLng === null) return;
+        lastPingAt = now;
+
+        try {
+            await fetch(routes.pingLocation, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    latitude: targetLat,
+                    longitude: targetLng,
+                    accuracy: currentAccuracy,
+                    speed: currentSpeed,
+                    heading: currentHeading,
+                    travel_mode: travelMode,
+                    timestamp: pos?.timestamp ? Math.round(pos.timestamp) : now,
+                    device_id: window.deviceId,
+                }),
+            });
+        } catch (e) {
+            // ignore ping failures (best-effort)
+        }
     }
 
     function onPositionError(err) {

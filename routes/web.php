@@ -25,6 +25,7 @@ Route::middleware(['staff.sign.nocache'])->group(function () {
         Route::get('/staff/sign/replay/{attendance}', [App\Http\Controllers\StaffSignController::class, 'replay'])->name('staff.sign.replay');
         Route::post('/staff/sign/in', [App\Http\Controllers\StaffSignController::class, 'signIn'])->name('staff.sign.in');
         Route::post('/staff/sign/out', [App\Http\Controllers\StaffSignController::class, 'signOut'])->name('staff.sign.out');
+        Route::post('/staff/sign/ping', [App\Http\Controllers\StaffSignController::class, 'pingLocation'])->name('staff.sign.ping');
     });
 });
 
@@ -80,7 +81,14 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('attendance')->name('attendance.')->group(function () {
         Route::get('/', [App\Http\Controllers\AttendanceController::class, 'index'])->name('index');
         Route::get('/sync', [App\Http\Controllers\AttendanceController::class, 'sync'])->name('sync');
+        Route::get('/journey/{attendance}', [App\Http\Controllers\AttendanceController::class, 'journey'])->name('journey');
         Route::post('/settings', [App\Http\Controllers\SystemSettingsController::class, 'update'])->name('settings.save');
+    });
+
+    // Staff live tracking (CEO/HR/Admin)
+    Route::middleware(['tracking.role'])->group(function () {
+        Route::get('/staff/tracking', [App\Http\Controllers\StaffTrackingController::class, 'index'])->name('staff.tracking');
+        Route::get('/staff/tracking/data', [App\Http\Controllers\StaffTrackingController::class, 'data'])->name('staff.tracking.data');
     });
 
     // System settings

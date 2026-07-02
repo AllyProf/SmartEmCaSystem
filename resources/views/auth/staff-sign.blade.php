@@ -1202,6 +1202,7 @@
                 signOut: @json(route('staff.sign.out')),
                 signPage: @json(route('staff.sign')),
                 reverseGeocode: @json(route('staff.sign.reverse-geocode')),
+                pingLocation: @json(route('staff.sign.ping')),
             },
         };
     </script>
