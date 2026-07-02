@@ -8,6 +8,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Customer extends Model
 {
+    protected static function booted(): void
+    {
+        static::created(function (Customer $customer) {
+            app(\App\Services\SmsScheduleService::class)
+                ->addCustomerToAllPendingSchedules($customer);
+        });
+    }
+
     protected $fillable = [
         'name',
         'phone_number',

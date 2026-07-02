@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\SmsLog;
 use App\Models\SmsSchedule;
+use App\Services\SmsScheduleService;
 use App\Services\SmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -13,8 +14,10 @@ class SmsController extends Controller
 {
     protected $smsService;
 
-    public function __construct(SmsService $smsService)
-    {
+    public function __construct(
+        SmsService $smsService,
+        protected SmsScheduleService $scheduleService
+    ) {
         $this->smsService = $smsService;
     }
 
@@ -23,6 +26,8 @@ class SmsController extends Controller
      */
     public function index()
     {
+        $this->scheduleService->supplementAllPendingSchedules();
+
         $customers = Customer::orderBy('created_at', 'desc')->get();
         $smsLogs = SmsLog::with(['customer', 'sender'])
             ->orderByRaw("CASE WHEN status = 'scheduled' AND scheduled_at IS NOT NULL THEN scheduled_at WHEN status = 'cancelled' THEN updated_at WHEN sent_at IS NOT NULL THEN sent_at ELSE created_at END DESC")

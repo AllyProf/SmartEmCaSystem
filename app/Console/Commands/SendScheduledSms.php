@@ -6,6 +6,7 @@ use App\Models\SmsLog;
 use App\Models\SmsSchedule;
 use App\Models\User;
 use App\Services\AttendanceSettingService;
+use App\Services\SmsScheduleService;
 use App\Services\SmsService;
 use Illuminate\Console\Command;
 
@@ -34,55 +35,20 @@ class SendScheduledSms extends Command
     /**
      * Execute the console command.
      */
-    public function handle(SmsService $smsService)
+    public function handle(SmsService $smsService, SmsScheduleService $scheduleService)
     {
         $now = now();
         $this->info("Checking for scheduled SMS messages at: " . $now->toDateTimeString());
 
-        // For "send to all" schedules, include customers registered after the schedule was created.
+        $added = $scheduleService->supplementAllPendingSchedules();
+        if ($added > 0) {
+            $this->info("Added {$added} newly registered customers to pending all-customer batches.");
+        }
+
         $dueSchedules = SmsSchedule::where('status', 'scheduled')
             ->whereNotNull('scheduled_at')
             ->where('scheduled_at', '<=', $now)
             ->get();
-
-        foreach ($dueSchedules as $schedule) {
-            if ($schedule->send_to !== 'all') {
-                continue;
-            }
-
-            $existingCustomerIds = SmsLog::where('schedule_id', $schedule->id)
-                ->where('status', 'scheduled')
-                ->whereNotNull('customer_id')
-                ->pluck('customer_id')
-                ->all();
-
-            $missingCustomers = \App\Models\Customer::query()
-                ->when(!empty($existingCustomerIds), fn ($q) => $q->whereNotIn('id', $existingCustomerIds))
-                ->get();
-
-            if ($missingCustomers->isNotEmpty()) {
-                $this->info("Schedule #{$schedule->id}: adding {$missingCustomers->count()} newly registered customers.");
-            }
-
-            foreach ($missingCustomers as $customer) {
-                $msg = $schedule->message_template;
-                $msg = str_replace('{year}', date('Y'), $msg);
-                if ($customer->name) {
-                    $msg = str_replace('{name}', $customer->name, $msg);
-                }
-
-                SmsLog::create([
-                    'schedule_id' => $schedule->id,
-                    'customer_id' => $customer->id,
-                    'phone_number' => $customer->phone_number,
-                    'message' => $msg,
-                    'sms_type' => $schedule->sms_type,
-                    'status' => 'scheduled',
-                    'scheduled_at' => $schedule->scheduled_at,
-                    'sent_by' => $schedule->created_by,
-                ]);
-            }
-        }
 
         $scheduledSms = SmsLog::where('status', 'scheduled')
             ->where('scheduled_at', '<=', $now)
