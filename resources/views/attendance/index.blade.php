@@ -81,7 +81,7 @@
         align-items: center;
         transform: translate(-50%, calc(-100% - 2px));
         width: max-content;
-        max-width: 120px;
+        max-width: 160px;
         pointer-events: none;
     }
     .attendance-pin-label {
@@ -97,9 +97,7 @@
         border: 1.5px solid var(--pin-color, #666);
         box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 120px;
+        max-width: 160px;
         pointer-events: auto;
     }
     .attendance-pin-dot {
@@ -840,6 +838,84 @@
         cards.innerHTML = records.map(buildRecordCardHtml).join('');
     }
 
+    function haversineMeters(lat1, lng1, lat2, lng2) {
+        const earthRadius = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+            + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+            * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function offsetLatLng(lat, lng, bearingDeg, distanceM) {
+        const earthRadius = 6371000;
+        const bearing = bearingDeg * Math.PI / 180;
+        const lat1 = lat * Math.PI / 180;
+        const lng1 = lng * Math.PI / 180;
+        const angular = distanceM / earthRadius;
+        const lat2 = Math.asin(
+            Math.sin(lat1) * Math.cos(angular)
+            + Math.cos(lat1) * Math.sin(angular) * Math.cos(bearing)
+        );
+        const lng2 = lng1 + Math.atan2(
+            Math.sin(bearing) * Math.sin(angular) * Math.cos(lat1),
+            Math.cos(angular) - Math.sin(lat1) * Math.sin(lat2)
+        );
+        return { lat: lat2 * 180 / Math.PI, lng: lng2 * 180 / Math.PI };
+    }
+
+    function spreadPinsForDisplay(pins) {
+        const thresholdM = 10;
+        const spreadRadiusM = 22;
+        const clones = pins.map(function (pin) { return Object.assign({}, pin); });
+        const groups = [];
+
+        clones.forEach(function (pin) {
+            let group = null;
+            for (let i = 0; i < groups.length; i++) {
+                const ref = groups[i][0];
+                if (haversineMeters(pin.lat, pin.lng, ref.lat, ref.lng) < thresholdM) {
+                    group = groups[i];
+                    break;
+                }
+            }
+            if (!group) {
+                group = [];
+                groups.push(group);
+            }
+            group.push(pin);
+        });
+
+        const displayPins = [];
+        groups.forEach(function (group) {
+            const centerLat = group.reduce(function (sum, pin) { return sum + pin.lat; }, 0) / group.length;
+            const centerLng = group.reduce(function (sum, pin) { return sum + pin.lng; }, 0) / group.length;
+
+            group.forEach(function (pin, index) {
+                if (group.length > 1) {
+                    const angle = ((360 / group.length) * index) - 90;
+                    const spread = offsetLatLng(centerLat, centerLng, angle, spreadRadiusM);
+                    pin.display_lat = spread.lat;
+                    pin.display_lng = spread.lng;
+                } else {
+                    pin.display_lat = pin.lat;
+                    pin.display_lng = pin.lng;
+                }
+                displayPins.push(pin);
+            });
+        });
+
+        return displayPins;
+    }
+
+    function pinDisplayCoords(pin) {
+        return {
+            lat: pin.display_lat != null ? pin.display_lat : pin.lat,
+            lng: pin.display_lng != null ? pin.display_lng : pin.lng,
+        };
+    }
+
     function refreshOverviewMapPins(fitBounds) {
         if (!attendanceOverviewMap) return;
 
@@ -849,19 +925,27 @@
         overviewMarkersLayer = L.layerGroup().addTo(attendanceOverviewMap);
 
         const bounds = [[hqLat, hqLng]];
+        const displayPins = spreadPinsForDisplay(overviewPins);
 
-        overviewPins.forEach(function (pin) {
+        displayPins.forEach(function (pin, index) {
             const color = overviewPinColor(pin);
             const pulsing = pin.still_working && pin.inside_hq;
-            const marker = L.marker([pin.lat, pin.lng], { icon: attendancePinIcon(color, pulsing, pin.name) })
+            const coords = pinDisplayCoords(pin);
+            const marker = L.marker([coords.lat, coords.lng], {
+                icon: attendancePinIcon(color, pulsing, pin.name),
+                zIndexOffset: 1000 + index,
+            })
                 .addTo(overviewMarkersLayer)
                 .bindPopup(buildOverviewPopup(pin));
             bindOverviewPopupEvents(pin, marker);
-            bounds.push([pin.lat, pin.lng]);
+            bounds.push([coords.lat, coords.lng]);
 
             if (pin.lat_in && pin.lng_in && pin.still_working
                 && (pin.lat_in !== pin.lat || pin.lng_in !== pin.lng)) {
-                L.marker([pin.lat_in, pin.lng_in], { icon: attendancePinIcon('#17a2b8', false, pin.name + ' · in') })
+                L.marker([pin.lat_in, pin.lng_in], {
+                    icon: attendancePinIcon('#17a2b8', false, pin.name + ' · in'),
+                    zIndexOffset: 500 + index,
+                })
                     .addTo(overviewMarkersLayer)
                     .bindPopup('<strong>' + escapeHtml(pin.name) + '</strong><br>Sign-in location');
                 bounds.push([pin.lat_in, pin.lng_in]);
@@ -1109,7 +1193,8 @@
         }).addTo(attendanceOverviewMap).bindPopup(escapeHtml(hqName) + ' · ' + hqRadius + 'm zone');
 
         L.marker([hqLat, hqLng], {
-            icon: attendancePinIcon('#940000', false, hqName),
+            icon: attendancePinIcon('#940000', false, 'HQ'),
+            zIndexOffset: 50,
         }).addTo(attendanceOverviewMap).bindPopup('<strong>' + escapeHtml(hqName) + ' center</strong>');
 
         overviewMarkersLayer = L.layerGroup().addTo(attendanceOverviewMap);
