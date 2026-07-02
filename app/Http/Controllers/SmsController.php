@@ -34,13 +34,15 @@ class SmsController extends Controller
             ->withCount([
                 'logs as total' => fn ($q) => $q->where('status', 'scheduled'),
             ])
-            ->get();
+            ->get()
+            ->toBase();
 
         // Legacy batches (scheduled before SmsSchedule existed)
         $legacyBatches = SmsLog::where('status', 'scheduled')
             ->whereNotNull('scheduled_at')
             ->whereNull('schedule_id')
             ->get()
+            ->toBase()
             ->groupBy(fn ($sms) => $sms->scheduled_at->format('Y-m-d H:i:s') . '::' . md5($sms->message))
             ->map(function ($group) {
                 $first = $group->first();
@@ -56,7 +58,7 @@ class SmsController extends Controller
             ->values();
 
         $scheduledBatches = $scheduleBatches
-            ->map(function (SmsSchedule $s) {
+            ->map(function ($s) {
                 return (object) [
                     'kind' => 'schedule',
                     'id' => $s->id,
