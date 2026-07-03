@@ -199,30 +199,41 @@ class AttendanceController extends Controller
         $geofence = app(AttendanceGeofenceService::class);
 
         $userIds = collect($filteredResults)->pluck('user_id')->filter()->unique()->values();
-        $latestPings = collect();
+        $pingsByUser = collect();
         if ($userIds->isNotEmpty()) {
-            $latestPings = StaffLiveLocation::whereIn('user_id', $userIds)
-                ->orderByDesc('captured_at')
+            $earliestSignIn = collect($filteredResults)->min(fn ($att) => $att->signed_in_at);
+            $pingsByUser = StaffLiveLocation::whereIn('user_id', $userIds)
+                ->when($earliestSignIn, fn ($q) => $q->where('captured_at', '>=', $earliestSignIn))
+                ->orderBy('captured_at')
                 ->get()
-                ->groupBy('user_id')
-                ->map(fn ($group) => $group->first());
+                ->groupBy('user_id');
         }
 
         $mapPins = collect($filteredResults)
             ->filter(fn ($att) => $att->latitude_in && $att->longitude_in)
-            ->map(function ($att) use ($geofence, $latestPings) {
+            ->map(function ($att) use ($geofence, $pingsByUser) {
                 $latIn = (float) $att->latitude_in;
                 $lngIn = (float) $att->longitude_in;
                 $signedOut = (bool) $att->signed_out_at;
-                $ping = $latestPings->get($att->user_id);
+                $signedInAt = Carbon::parse($att->signed_in_at);
+
+                $sessionPings = $pingsByUser
+                    ->get($att->user_id, collect())
+                    ->filter(fn ($ping) => $ping->captured_at && $ping->captured_at->gte($signedInAt))
+                    ->values();
+
+                $ping = $sessionPings->last();
+                $hasLive = !$signedOut && $ping !== null;
+                $liveLat = $hasLive ? (float) $ping->latitude : null;
+                $liveLng = $hasLive ? (float) $ping->longitude : null;
 
                 if ($signedOut && $att->latitude_out && $att->longitude_out) {
                     $lat = (float) $att->latitude_out;
                     $lng = (float) $att->longitude_out;
                     $insideHq = $geofence->isWithinHq($lat, $lng);
-                } elseif (!$signedOut && $ping && $ping->captured_at && $ping->captured_at->gt(now()->subMinutes(30))) {
-                    $lat = (float) $ping->latitude;
-                    $lng = (float) $ping->longitude;
+                } elseif ($hasLive) {
+                    $lat = $liveLat;
+                    $lng = $liveLng;
                     $insideHq = $geofence->isWithinHq($lat, $lng);
                 } else {
                     $lat = $latIn;
@@ -231,6 +242,20 @@ class AttendanceController extends Controller
                 }
 
                 $lastSeenSeconds = ($ping && $ping->captured_at) ? now()->diffInSeconds($ping->captured_at) : null;
+                $movedSinceSignIn = $hasLive
+                    && $geofence->distanceBetween($latIn, $lngIn, $lat, $lng) > 8;
+
+                $movementPath = $sessionPings
+                    ->map(fn ($p) => [(float) $p->latitude, (float) $p->longitude])
+                    ->values()
+                    ->all();
+
+                if ($hasLive && $movedSinceSignIn) {
+                    $first = $movementPath[0] ?? null;
+                    if (!$first || abs($first[0] - $latIn) > 0.00005 || abs($first[1] - $lngIn) > 0.00005) {
+                        array_unshift($movementPath, [$latIn, $lngIn]);
+                    }
+                }
 
                 $actualLat = $lat;
                 $actualLng = $lng;
@@ -256,6 +281,11 @@ class AttendanceController extends Controller
                     'actual_lng' => $actualLng,
                     'lat_in' => $latIn,
                     'lng_in' => $lngIn,
+                    'live_lat' => $liveLat,
+                    'live_lng' => $liveLng,
+                    'has_live' => $hasLive,
+                    'moved_since_sign_in' => $movedSinceSignIn,
+                    'movement_path' => $movementPath,
                     'lat_out' => $att->latitude_out ? (float) $att->latitude_out : null,
                     'lng_out' => $att->longitude_out ? (float) $att->longitude_out : null,
                     'signed_in' => Carbon::parse($att->signed_in_at)->format('h:i A'),

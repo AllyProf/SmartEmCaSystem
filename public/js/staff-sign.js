@@ -571,7 +571,7 @@
     }
 
     async function maybePingLiveLocation(pos) {
-        if (!isAuthenticated || !routes.pingLocation) return;
+        if (!isAuthenticated || !isSignedIn || !routes.pingLocation) return;
         const now = Date.now();
         if (now - lastPingAt < PING_INTERVAL_MS) return;
         if (targetLat === null || targetLng === null) return;

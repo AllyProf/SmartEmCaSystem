@@ -33,6 +33,11 @@ class AttendanceGeofenceService
         );
     }
 
+    public function distanceBetween(float $lat1, float $lng1, float $lat2, float $lng2): float
+    {
+        return $this->calculateDistanceInMeters($lat1, $lng1, $lat2, $lng2);
+    }
+
     public function isWithinHq(float $latitude, float $longitude): bool
     {
         return $this->distanceFromHq($latitude, $longitude) <= $this->radiusMeters();

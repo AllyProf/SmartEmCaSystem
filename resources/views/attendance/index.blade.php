@@ -325,6 +325,8 @@
                 <span><i class="dot" style="background:#fd7e14;"></i> Outside HQ</span>
                 <span><i class="dot" style="background:#6c757d;"></i> Signed out · left HQ</span>
                 <span><i class="dot" style="background:#28a745;box-shadow:0 0 0 3px rgba(40,167,69,.35);"></i> Pulsing = still at HQ</span>
+                <span><i class="dot" style="background:#17a2b8;"></i> Sign-in point</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;"><i style="display:inline-block;width:18px;height:3px;background:#28a745;border-radius:2px;"></i> Live trail</span>
                 <span><i class="dot" style="background:#940000;"></i> HQ center</span>
             </div>
         </div>
@@ -868,7 +870,20 @@
     function spreadPinsForDisplay(pins) {
         const thresholdM = 10;
         const spreadRadiusM = 22;
-        const clones = pins.map(function (pin) { return Object.assign({}, pin); });
+        const trackable = [];
+        const clusterable = [];
+
+        pins.forEach(function (pin) {
+            if (pin.still_working && pin.has_live && pin.moved_since_sign_in) {
+                pin.display_lat = pin.lat;
+                pin.display_lng = pin.lng;
+                trackable.push(pin);
+                return;
+            }
+            clusterable.push(pin);
+        });
+
+        const clones = clusterable.map(function (pin) { return Object.assign({}, pin); });
         const groups = [];
 
         clones.forEach(function (pin) {
@@ -906,7 +921,7 @@
             });
         });
 
-        return displayPins;
+        return trackable.concat(displayPins);
     }
 
     function pinDisplayCoords(pin) {
@@ -931,8 +946,28 @@
             const color = overviewPinColor(pin);
             const pulsing = pin.still_working && pin.inside_hq;
             const coords = pinDisplayCoords(pin);
+
+            if (pin.still_working && pin.movement_path && pin.movement_path.length >= 2) {
+                L.polyline(pin.movement_path, {
+                    color: color,
+                    weight: 5,
+                    opacity: 0.88,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                }).addTo(overviewMarkersLayer);
+                pin.movement_path.forEach(function (pt) { bounds.push(pt); });
+            } else if (pin.still_working && pin.moved_since_sign_in && pin.lat_in && pin.lng_in) {
+                L.polyline([[pin.lat_in, pin.lng_in], [pin.lat, pin.lng]], {
+                    color: color,
+                    weight: 4,
+                    opacity: 0.9,
+                    dashArray: '8,10',
+                    lineCap: 'round',
+                }).addTo(overviewMarkersLayer);
+            }
+
             const marker = L.marker([coords.lat, coords.lng], {
-                icon: attendancePinIcon(color, pulsing, pin.name),
+                icon: attendancePinIcon(color, pulsing, pin.name + (pin.has_live ? ' · live' : '')),
                 zIndexOffset: 1000 + index,
             })
                 .addTo(overviewMarkersLayer)
@@ -941,9 +976,9 @@
             bounds.push([coords.lat, coords.lng]);
 
             if (pin.lat_in && pin.lng_in && pin.still_working
-                && (pin.lat_in !== pin.lat || pin.lng_in !== pin.lng)) {
+                && (pin.moved_since_sign_in || pin.lat_in !== pin.lat || pin.lng_in !== pin.lng)) {
                 L.marker([pin.lat_in, pin.lng_in], {
-                    icon: attendancePinIcon('#17a2b8', false, pin.name + ' · in'),
+                    icon: attendancePinIcon('#17a2b8', false, pin.name + ' · sign-in'),
                     zIndexOffset: 500 + index,
                 })
                     .addTo(overviewMarkersLayer)
@@ -1101,6 +1136,8 @@
             if (pin.last_seen_seconds !== null && pin.last_seen_seconds > 120) {
                 const mins = Math.max(1, Math.round(pin.last_seen_seconds / 60));
                 html += '<span class="popup-badge" style="background:#6c757d;">GPS offline · last seen ' + mins + 'm</span>';
+            } else if (pin.has_live && pin.moved_since_sign_in) {
+                html += '<span class="popup-badge" style="background:#17a2b8;">Live tracking</span>';
             }
         }
         if (pin.forgot_sign_out) {
@@ -1115,10 +1152,15 @@
         if (pin.signed_out) {
             html += '<div class="small"><i class="fa fa-sign-out"></i> Out: ' + escapeHtml(pin.signed_out) + '</div>';
         }
-        const locationLabel = !pin.still_working
-            ? 'Left HQ after sign-out'
-            : 'Current location';
-        html += '<div class="small text-muted">' + locationLabel + ' · sign-out GPS ' + pin.distance_m + 'm from ' + escapeHtml(hqName) + ' center</div>';
+        let locationLabel = 'Current location';
+        if (!pin.still_working) {
+            locationLabel = 'Left HQ after sign-out';
+        } else if (pin.has_live && pin.moved_since_sign_in) {
+            locationLabel = 'Live GPS (moved from sign-in point)';
+        } else if (!pin.has_live) {
+            locationLabel = 'Last known at sign-in (no live GPS yet)';
+        }
+        html += '<div class="small text-muted">' + locationLabel + ' · ' + pin.distance_m + 'm from ' + escapeHtml(hqName) + ' center</div>';
         if (pin.photo_url) {
             html += '<img src="' + escapeHtml(pin.photo_url) + '" class="popup-photo-thumb overview-popup-photo" alt="Sign-in photo" data-pin-id="' + pin.id + '">';
             html += '<button type="button" class="btn btn-sm btn-danger btn-block overview-popup-photo-btn" data-pin-id="' + pin.id + '">'
@@ -1211,7 +1253,7 @@
         });
 
         syncAttendanceData();
-        setInterval(syncAttendanceData, 30000);
+        setInterval(syncAttendanceData, 15000);
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) syncAttendanceData();
         });
