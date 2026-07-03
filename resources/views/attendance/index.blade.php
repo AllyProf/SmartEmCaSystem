@@ -126,6 +126,32 @@
         0% { transform: scale(0.6); opacity: 0.9; }
         100% { transform: scale(2.2); opacity: 0; }
     }
+    .attendance-signin-dot {
+        width: 10px;
+        height: 10px;
+        border: 3px solid #17a2b8;
+        background: #fff;
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    }
+    .attendance-pin-label--compact {
+        font-size: 9px;
+        padding: 1px 6px;
+        max-width: 110px;
+    }
+    .attendance-pin-live-badge {
+        display: inline-block;
+        margin-left: 3px;
+        padding: 0 4px;
+        font-size: 7px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        color: #fff;
+        background: #28a745;
+        border-radius: 3px;
+        vertical-align: middle;
+    }
     .attendance-map-popup { min-width: 180px; max-width: 220px; }
     .attendance-map-popup .popup-photo-thumb {
         width: 100%;
@@ -651,7 +677,9 @@
     let serverTimeOffsetMs = 0;
     let syncInFlight = false;
     let attendanceOverviewMap = null;
+    let overviewTrailsLayer = null;
     let overviewMarkersLayer = null;
+    const LIVE_TRAIL_COLOR = '#28a745';
     let overviewHeatLayer = null;
     let heatmapActive = false;
     let attendanceLocationMap = null;
@@ -931,8 +959,61 @@
         };
     }
 
+    function shortStaffName(name) {
+        const parts = String(name || '').trim().split(/\s+/);
+        return parts[0] || name || '';
+    }
+
+    function simplifyMovementPath(path, minMeters) {
+        if (!Array.isArray(path) || path.length < 2) {
+            return path || [];
+        }
+        const out = [path[0]];
+        for (let i = 1; i < path.length; i++) {
+            const prev = out[out.length - 1];
+            if (haversineMeters(prev[0], prev[1], path[i][0], path[i][1]) >= minMeters) {
+                out.push(path[i]);
+            }
+        }
+        const lastIn = path[path.length - 1];
+        const lastOut = out[out.length - 1];
+        if (lastOut[0] !== lastIn[0] || lastOut[1] !== lastIn[1]) {
+            out.push(lastIn);
+        }
+        return out;
+    }
+
+    function drawLiveTrail(layer, path) {
+        const smooth = simplifyMovementPath(path, 5);
+        if (smooth.length < 2) {
+            return smooth;
+        }
+        L.polyline(smooth, {
+            color: '#ffffff',
+            weight: 5,
+            opacity: 0.7,
+            lineCap: 'round',
+            lineJoin: 'round',
+            smoothFactor: 1.5,
+        }).addTo(layer);
+        L.polyline(smooth, {
+            color: LIVE_TRAIL_COLOR,
+            weight: 3,
+            opacity: 0.9,
+            lineCap: 'round',
+            lineJoin: 'round',
+            smoothFactor: 1.5,
+        }).addTo(layer);
+        return smooth;
+    }
+
     function refreshOverviewMapPins(fitBounds) {
         if (!attendanceOverviewMap) return;
+
+        if (overviewTrailsLayer) {
+            attendanceOverviewMap.removeLayer(overviewTrailsLayer);
+        }
+        overviewTrailsLayer = L.layerGroup().addTo(attendanceOverviewMap);
 
         if (overviewMarkersLayer) {
             attendanceOverviewMap.removeLayer(overviewMarkersLayer);
@@ -941,40 +1022,46 @@
 
         const bounds = [[hqLat, hqLng]];
         const displayPins = spreadPinsForDisplay(overviewPins);
+        let liveLabelIndex = 0;
+
+        displayPins.forEach(function (pin) {
+            if (pin.still_working && pin.movement_path && pin.movement_path.length >= 2) {
+                drawLiveTrail(overviewTrailsLayer, pin.movement_path).forEach(function (pt) {
+                    bounds.push(pt);
+                });
+            } else if (pin.still_working && pin.moved_since_sign_in && pin.lat_in && pin.lng_in) {
+                L.polyline([[pin.lat_in, pin.lng_in], [pin.lat, pin.lng]], {
+                    color: LIVE_TRAIL_COLOR,
+                    weight: 2,
+                    opacity: 0.75,
+                    dashArray: '6, 8',
+                    lineCap: 'round',
+                }).addTo(overviewTrailsLayer);
+            }
+        });
 
         displayPins.forEach(function (pin, index) {
             const color = overviewPinColor(pin);
             const pulsing = pin.still_working && pin.inside_hq;
             const coords = pinDisplayCoords(pin);
-
-            if (pin.still_working && pin.movement_path && pin.movement_path.length >= 2) {
-                L.polyline(pin.movement_path, {
-                    color: '#ffffff',
-                    weight: 10,
-                    opacity: 0.55,
-                    lineCap: 'round',
-                    lineJoin: 'round',
-                }).addTo(overviewMarkersLayer);
-                L.polyline(pin.movement_path, {
-                    color: color,
-                    weight: 6,
-                    opacity: 0.95,
-                    lineCap: 'round',
-                    lineJoin: 'round',
-                }).addTo(overviewMarkersLayer);
-                pin.movement_path.forEach(function (pt) { bounds.push(pt); });
-            } else if (pin.still_working && pin.moved_since_sign_in && pin.lat_in && pin.lng_in) {
-                L.polyline([[pin.lat_in, pin.lng_in], [pin.lat, pin.lng]], {
-                    color: color,
-                    weight: 4,
-                    opacity: 0.9,
-                    dashArray: '8,10',
-                    lineCap: 'round',
-                }).addTo(overviewMarkersLayer);
+            const isLiveTrack = pin.still_working && pin.has_live && pin.moved_since_sign_in;
+            let labelOffset = null;
+            if (isLiveTrack) {
+                const angle = ((liveLabelIndex * 52) - 90) * Math.PI / 180;
+                labelOffset = {
+                    x: Math.round(Math.cos(angle) * 18),
+                    y: Math.round(Math.sin(angle) * 12),
+                };
+                liveLabelIndex++;
             }
 
             const marker = L.marker([coords.lat, coords.lng], {
-                icon: attendancePinIcon(color, pulsing, pin.name + (pin.has_live ? ' · live' : '')),
+                icon: attendancePinIcon(
+                    color,
+                    pulsing,
+                    isLiveTrack ? shortStaffName(pin.name) : pin.name,
+                    { live: isLiveTrack, compact: isLiveTrack, labelOffset: labelOffset }
+                ),
                 zIndexOffset: 1000 + index,
             })
                 .addTo(overviewMarkersLayer)
@@ -985,8 +1072,8 @@
             if (pin.lat_in && pin.lng_in && pin.still_working
                 && (pin.moved_since_sign_in || pin.lat_in !== pin.lat || pin.lng_in !== pin.lng)) {
                 L.marker([pin.lat_in, pin.lng_in], {
-                    icon: attendancePinIcon('#17a2b8', false, pin.name + ' · sign-in'),
-                    zIndexOffset: 500 + index,
+                    icon: attendanceSignInIcon(),
+                    zIndexOffset: 300 + index,
                 })
                     .addTo(overviewMarkersLayer)
                     .bindPopup('<strong>' + escapeHtml(pin.name) + '</strong><br>Sign-in location');
@@ -1090,16 +1177,37 @@
         $('#attendancePhotoModal').modal('show');
     });
 
-    function attendancePinIcon(color, pulsing, name) {
+    function attendanceSignInIcon() {
+        return L.divIcon({
+            className: 'attendance-marker-icon',
+            html: '<div class="attendance-signin-dot" title="Sign-in point"></div>',
+            iconSize: [0, 0],
+            iconAnchor: [0, 0],
+        });
+    }
+
+    function attendancePinIcon(color, pulsing, name, options) {
+        options = options || {};
         const pulse = pulsing
             ? '<div class="attendance-pin-pulse"></div>'
             : '';
-        const labelHtml = name
-            ? '<span class="attendance-pin-label" style="--pin-color:' + color + '">' + escapeHtml(name) + '</span>'
+        let labelHtml = '';
+        if (name) {
+            const liveBadge = options.live
+                ? ' <span class="attendance-pin-live-badge">LIVE</span>'
+                : '';
+            const compactClass = options.compact ? ' attendance-pin-label--compact' : '';
+            labelHtml = '<span class="attendance-pin-label' + compactClass + '" style="--pin-color:' + color + '">'
+                + escapeHtml(name) + liveBadge + '</span>';
+        }
+        const offset = options.labelOffset;
+        const markerTransform = offset
+            ? 'transform:translate(calc(-50% + ' + offset.x + 'px), calc(-100% - 2px + ' + offset.y + 'px));'
             : '';
         return L.divIcon({
             className: 'attendance-marker-icon',
-            html: '<div class="attendance-pin-marker">' + labelHtml
+            html: '<div class="attendance-pin-marker"' + (markerTransform ? ' style="' + markerTransform + '"' : '') + '>'
+                + labelHtml
                 + '<div class="attendance-pin-wrap">' + pulse
                 + '<div class="attendance-pin-dot" style="background:' + color + '"></div></div></div>',
             iconSize: [0, 0],
@@ -1246,6 +1354,7 @@
             zIndexOffset: 50,
         }).addTo(attendanceOverviewMap).bindPopup('<strong>' + escapeHtml(hqName) + ' center</strong>');
 
+        overviewTrailsLayer = L.layerGroup().addTo(attendanceOverviewMap);
         overviewMarkersLayer = L.layerGroup().addTo(attendanceOverviewMap);
         refreshOverviewMapPins(true);
 
