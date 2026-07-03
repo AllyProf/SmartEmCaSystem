@@ -949,9 +949,16 @@
 
             if (pin.still_working && pin.movement_path && pin.movement_path.length >= 2) {
                 L.polyline(pin.movement_path, {
+                    color: '#ffffff',
+                    weight: 10,
+                    opacity: 0.55,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                }).addTo(overviewMarkersLayer);
+                L.polyline(pin.movement_path, {
                     color: color,
-                    weight: 5,
-                    opacity: 0.88,
+                    weight: 6,
+                    opacity: 0.95,
                     lineCap: 'round',
                     lineJoin: 'round',
                 }).addTo(overviewMarkersLayer);
@@ -1253,7 +1260,7 @@
         });
 
         syncAttendanceData();
-        setInterval(syncAttendanceData, 15000);
+        setInterval(syncAttendanceData, 10000);
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) syncAttendanceData();
         });

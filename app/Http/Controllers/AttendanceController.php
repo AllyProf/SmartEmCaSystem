@@ -227,7 +227,22 @@ class AttendanceController extends Controller
                 $liveLat = $hasLive ? (float) $ping->latitude : null;
                 $liveLng = $hasLive ? (float) $ping->longitude : null;
 
-                if ($signedOut && $att->latitude_out && $att->longitude_out) {
+                $movementPath = $this->buildAttendanceMovementPath(
+                    $att,
+                    $sessionPings,
+                    $latIn,
+                    $lngIn
+                );
+
+                if (!$signedOut && count($movementPath) >= 2) {
+                    $last = $movementPath[count($movementPath) - 1];
+                    $lat = (float) $last[0];
+                    $lng = (float) $last[1];
+                    $liveLat = $lat;
+                    $liveLng = $lng;
+                    $hasLive = true;
+                    $insideHq = $geofence->isWithinHq($lat, $lng);
+                } elseif ($signedOut && $att->latitude_out && $att->longitude_out) {
                     $lat = (float) $att->latitude_out;
                     $lng = (float) $att->longitude_out;
                     $insideHq = $geofence->isWithinHq($lat, $lng);
@@ -242,20 +257,21 @@ class AttendanceController extends Controller
                 }
 
                 $lastSeenSeconds = ($ping && $ping->captured_at) ? now()->diffInSeconds($ping->captured_at) : null;
-                $movedSinceSignIn = $hasLive
-                    && $geofence->distanceBetween($latIn, $lngIn, $lat, $lng) > 8;
-
-                $movementPath = $sessionPings
-                    ->map(fn ($p) => [(float) $p->latitude, (float) $p->longitude])
-                    ->values()
-                    ->all();
-
-                if ($hasLive && $movedSinceSignIn) {
-                    $first = $movementPath[0] ?? null;
-                    if (!$first || abs($first[0] - $latIn) > 0.00005 || abs($first[1] - $lngIn) > 0.00005) {
-                        array_unshift($movementPath, [$latIn, $lngIn]);
+                if ($lastSeenSeconds === null) {
+                    $lastTraceTs = collect($att->path_trace ?? [])
+                        ->pluck('timestamp')
+                        ->filter()
+                        ->last();
+                    if ($lastTraceTs) {
+                        $lastSeenSeconds = now()->diffInSeconds(Carbon::createFromTimestampMs((int) $lastTraceTs));
                     }
                 }
+
+                $movedSinceSignIn = !$signedOut
+                    && count($movementPath) >= 2
+                    && $geofence->distanceBetween($latIn, $lngIn, $lat, $lng) > 5;
+
+                $hasLive = !$signedOut && count($movementPath) >= 2;
 
                 $actualLat = $lat;
                 $actualLng = $lng;
@@ -335,6 +351,41 @@ class AttendanceController extends Controller
             'weekendDays' => implode(',', $attendanceSettings->weekendDays()),
             'publicHolidays' => implode(', ', $attendanceSettings->publicHolidays()),
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, StaffLiveLocation>  $sessionPings
+     * @return array<int, array{0: float, 1: float}>
+     */
+    private function buildAttendanceMovementPath(StaffAttendance $att, $sessionPings, float $latIn, float $lngIn): array
+    {
+        $points = [[$latIn, $lngIn]];
+
+        foreach ($att->path_trace ?? [] as $point) {
+            if (!is_array($point) || !isset($point['lat'], $point['lng'])) {
+                continue;
+            }
+            $points[] = [(float) $point['lat'], (float) $point['lng']];
+        }
+
+        foreach ($sessionPings as $ping) {
+            $points[] = [(float) $ping->latitude, (float) $ping->longitude];
+        }
+
+        $deduped = [];
+        foreach ($points as $point) {
+            $last = $deduped[count($deduped) - 1] ?? null;
+            if ($last && abs($last[0] - $point[0]) < 0.00002 && abs($last[1] - $point[1]) < 0.00002) {
+                continue;
+            }
+            $deduped[] = $point;
+        }
+
+        if (!empty($deduped)) {
+            $deduped[0] = [$latIn, $lngIn];
+        }
+
+        return $deduped;
     }
 
     /**

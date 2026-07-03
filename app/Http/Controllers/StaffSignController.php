@@ -366,7 +366,12 @@ class StaffSignController extends Controller
             'photo_in' => $photoPath,
             'gps_flagged_in' => $gpsAnalysis['flagged'],
             'gps_flags' => $gpsAnalysis,
-            'path_trace' => $request->input('gps_trail', []),
+            'path_trace' => $this->buildInitialPathTrace(
+                $latitude,
+                $longitude,
+                $signedInAt,
+                $request->input('gps_trail', [])
+            ),
             'is_late' => $this->rules->isLate($signedInAt),
         ]);
 
@@ -510,7 +515,106 @@ class StaffSignController extends Controller
             ],
         ]);
 
+        $this->appendLivePathPoint(
+            Auth::id(),
+            (float) $request->latitude,
+            (float) $request->longitude,
+            $capturedAt
+        );
+
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * @param  array<int, mixed>  $gpsTrail
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildInitialPathTrace(float $latitude, float $longitude, Carbon $signedInAt, array $gpsTrail): array
+    {
+        $trace = [[
+            'lat' => $latitude,
+            'lng' => $longitude,
+            'timestamp' => (int) ($signedInAt->timestamp * 1000),
+            'source' => 'sign_in',
+        ]];
+
+        foreach ($gpsTrail as $point) {
+            if (!is_array($point) || !isset($point['lat'], $point['lng'])) {
+                continue;
+            }
+            $trace[] = [
+                'lat' => (float) $point['lat'],
+                'lng' => (float) $point['lng'],
+                'timestamp' => isset($point['timestamp']) ? (int) $point['timestamp'] : null,
+                'source' => 'trail',
+            ];
+        }
+
+        return $this->dedupePathTrace($trace);
+    }
+
+    private function appendLivePathPoint(int $userId, float $latitude, float $longitude, Carbon $capturedAt): void
+    {
+        $attendance = StaffAttendance::where('user_id', $userId)
+            ->whereNull('signed_out_at')
+            ->latest('id')
+            ->first();
+
+        if (!$attendance) {
+            return;
+        }
+
+        $trace = $attendance->path_trace ?? [];
+        $trace[] = [
+            'lat' => $latitude,
+            'lng' => $longitude,
+            'timestamp' => (int) ($capturedAt->timestamp * 1000),
+            'source' => 'ping',
+        ];
+
+        $attendance->update([
+            'path_trace' => $this->dedupePathTrace($trace, 800),
+        ]);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $trace
+     * @return array<int, array<string, mixed>>
+     */
+    private function dedupePathTrace(array $trace, int $maxPoints = 600): array
+    {
+        $deduped = [];
+
+        foreach ($trace as $point) {
+            if (!isset($point['lat'], $point['lng'])) {
+                continue;
+            }
+
+            $lat = (float) $point['lat'];
+            $lng = (float) $point['lng'];
+            $last = $deduped[count($deduped) - 1] ?? null;
+
+            if ($last) {
+                $sameSpot = abs((float) $last['lat'] - $lat) < 0.00002
+                    && abs((float) $last['lng'] - $lng) < 0.00002;
+                if ($sameSpot) {
+                    continue;
+                }
+            }
+
+            $deduped[] = [
+                'lat' => $lat,
+                'lng' => $lng,
+                'timestamp' => $point['timestamp'] ?? null,
+                'source' => $point['source'] ?? null,
+            ];
+        }
+
+        if (count($deduped) > $maxPoints) {
+            $deduped = array_slice($deduped, -$maxPoints);
+        }
+
+        return array_values($deduped);
     }
 
     private function storePhoto(?string $base64, string $prefix, int $userId): ?string

@@ -31,7 +31,7 @@
     const WALK_SPEED = 0.35;
     const OFFLINE_KEY = 'smartemca_offline_sign_queue';
     let lastPingAt = 0;
-    const PING_INTERVAL_MS = 15000;
+    const PING_INTERVAL_MS = 10000;
 
     function escapeHtml(text) {
         const div = document.createElement('div');
@@ -568,6 +568,12 @@
         fitMapToUserAndHq();
 
         maybePingLiveLocation(pos);
+
+        if (isSignedIn && !window.__staffSignPingBootstrapped) {
+            window.__staffSignPingBootstrapped = true;
+            lastPingAt = 0;
+            maybePingLiveLocation(pos);
+        }
     }
 
     async function maybePingLiveLocation(pos) {
@@ -582,6 +588,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' },
                 credentials: 'same-origin',
+                keepalive: true,
                 body: JSON.stringify({
                     latitude: targetLat,
                     longitude: targetLng,
@@ -1157,11 +1164,16 @@
         }
     }
 
-        if (isAuthenticated) {
-            applySignWindowUi();
-            startCountdownTicker();
-            setInterval(refreshSignWindowStatus, 60000);
-        }
+    if (isAuthenticated) {
+        applySignWindowUi();
+        startCountdownTicker();
+        setInterval(refreshSignWindowStatus, 60000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden && isSignedIn) {
+                lastPingAt = 0;
+            }
+        });
+    }
 
     if (navigator.geolocation) {
         // Initialize map, then lock view onto first real GPS fix.
