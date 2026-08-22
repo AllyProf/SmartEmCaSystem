@@ -326,6 +326,26 @@
 
         <div class="col-lg-6 settings-section">
             <div class="tile">
+                <h3 class="tile-title"><i class="fa fa-handshake-o"></i> Visit Confirmation SMS</h3>
+                <p class="settings-hint">When staff submit a <strong>Single Customer</strong> or <strong>Group Visit</strong> form, choose who receives the thank-you SMS.</p>
+                <div class="form-group mb-0">
+                    <label class="font-weight-bold" for="visit_confirmation_sms_recipients">Send SMS to</label>
+                    <select name="visit_confirmation_sms_recipients" id="visit_confirmation_sms_recipients" class="form-control">
+                        @php
+                            $visitSmsRecipients = old('visit_confirmation_sms_recipients', $visitConfirmationSmsRecipients);
+                        @endphp
+                        <option value="both" {{ $visitSmsRecipients === 'both' ? 'selected' : '' }}>Customer and staff</option>
+                        <option value="customers_only" {{ $visitSmsRecipients === 'customers_only' ? 'selected' : '' }}>Customers only</option>
+                        <option value="staff_only" {{ $visitSmsRecipients === 'staff_only' ? 'selected' : '' }}>Staff only</option>
+                        <option value="none" {{ $visitSmsRecipients === 'none' ? 'selected' : '' }}>Do not send SMS</option>
+                    </select>
+                    <small class="text-muted">Customers = visit attendee phone numbers. Staff = the verified staff member who recorded the visit.</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 settings-section">
+            <div class="tile">
                 <h3 class="tile-title"><i class="fa fa-envelope"></i> Scheduled SMS Confirmations</h3>
                 <p class="settings-hint">When a scheduled SMS batch finishes sending, the staff member who created it receives a summary SMS on their profile phone number.</p>
                 <div class="custom-control custom-checkbox mb-3">

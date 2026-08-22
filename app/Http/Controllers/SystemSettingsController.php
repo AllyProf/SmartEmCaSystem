@@ -57,6 +57,7 @@ class SystemSettingsController extends Controller
             'monthlyAttendanceSmsTemplate' => $this->settings->weeklyAttendanceStaffSmsTemplate(),
             'scheduledSmsConfirmationEnabled' => $this->settings->scheduledSmsConfirmationEnabled(),
             'scheduledSmsConfirmationTemplate' => $this->settings->scheduledSmsConfirmationTemplate(),
+            'visitConfirmationSmsRecipients' => $this->settings->visitConfirmationSmsRecipients(),
             'notifyUsers' => $notifyUsers,
         ]);
     }
@@ -88,6 +89,7 @@ class SystemSettingsController extends Controller
             'weekly_summary_time' => 'required|date_format:H:i',
             'monthly_attendance_sms_template' => 'nullable|string|max:500',
             'scheduled_sms_confirmation_template' => 'nullable|string|max:500',
+            'visit_confirmation_sms_recipients' => 'required|in:both,customers_only,staff_only,none',
             'late_comer_extra_phones' => 'nullable|string|max:500',
             'late_comer_notify_roles' => 'nullable|array',
             'late_comer_notify_roles.*' => 'in:super_admin,ceo,hr',
@@ -121,6 +123,7 @@ class SystemSettingsController extends Controller
         $this->settings->set('weekly_summary_day', $request->weekly_summary_day);
         $this->settings->set('weekly_summary_time', $request->weekly_summary_time . ':00');
         $this->settings->set('scheduled_sms_confirmation_enabled', $request->boolean('scheduled_sms_confirmation_enabled') ? '1' : '0');
+        $this->settings->set('visit_confirmation_sms_recipients', $request->visit_confirmation_sms_recipients);
 
         if ($request->filled('sign_reminder_sms_template')) {
             $this->settings->set('sign_reminder_sms_template', $request->sign_reminder_sms_template);

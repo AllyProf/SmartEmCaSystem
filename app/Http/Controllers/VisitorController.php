@@ -8,14 +8,17 @@ use App\Models\Customer;
 use App\Models\VisitConfirmation;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Services\AttendanceSettingService;
 use App\Services\SmsService;
 
 class VisitorController extends Controller
 {
     protected $smsService;
 
-    public function __construct(SmsService $smsService)
-    {
+    public function __construct(
+        SmsService $smsService,
+        protected AttendanceSettingService $settings
+    ) {
         $this->smsService = $smsService;
     }
 
@@ -155,13 +158,11 @@ class VisitorController extends Controller
             $customer?->touch();
             $customerId = $customer?->id;
 
-            // SEND SMS TO CUSTOMER
-            if ($normalizedPhone) {
+            if ($this->settings->shouldSendVisitSmsToCustomers() && $normalizedPhone) {
                 $this->smsService->sendAndLog($normalizedPhone, $smsBody, 'customer_visit', $customerId, $staff ? $staff->id : null);
             }
 
-            // SEND SMS TO STAFF
-            if ($staff && $staff->phone) {
+            if ($this->settings->shouldSendVisitSmsToStaff() && $staff && $staff->phone) {
                 $staffMessage = "Visit Confirmed with {$request->customer_name}.\n" . $smsBody;
                 $this->smsService->sendAndLog($staff->phone, $staffMessage, 'staff_visit', null, $staff->id);
             }
@@ -212,12 +213,14 @@ class VisitorController extends Controller
 
                 if ($customer) {
                     $customer->touch();
-                    $this->smsService->sendAndLog($customer->phone_number, $smsBody, 'group_visit', $customer->id, $staff ? $staff->id : null);
+
+                    if ($this->settings->shouldSendVisitSmsToCustomers()) {
+                        $this->smsService->sendAndLog($customer->phone_number, $smsBody, 'group_visit', $customer->id, $staff ? $staff->id : null);
+                    }
                 }
             }
 
-            // SEND SMS TO STAFF
-            if ($staff && $staff->phone) {
+            if ($this->settings->shouldSendVisitSmsToStaff() && $staff && $staff->phone) {
                 $staffMessage = "Group Visit Attendance Recorded: {$request->subject}.\n" . $smsBody;
                 $this->smsService->sendAndLog($staff->phone, $staffMessage, 'staff_visit_group', null, $staff->id);
             }

@@ -246,6 +246,23 @@ class AttendanceSettingService
         return $this->weeklyAttendanceStaffSmsTemplate();
     }
 
+    public function visitConfirmationSmsRecipients(): string
+    {
+        $value = (string) $this->get('visit_confirmation_sms_recipients', 'both');
+
+        return in_array($value, ['both', 'customers_only', 'staff_only', 'none'], true) ? $value : 'both';
+    }
+
+    public function shouldSendVisitSmsToCustomers(): bool
+    {
+        return in_array($this->visitConfirmationSmsRecipients(), ['both', 'customers_only'], true);
+    }
+
+    public function shouldSendVisitSmsToStaff(): bool
+    {
+        return in_array($this->visitConfirmationSmsRecipients(), ['both', 'staff_only'], true);
+    }
+
     public function scheduledSmsConfirmationEnabled(): bool
     {
         return filter_var($this->get('scheduled_sms_confirmation_enabled', '1'), FILTER_VALIDATE_BOOLEAN);
