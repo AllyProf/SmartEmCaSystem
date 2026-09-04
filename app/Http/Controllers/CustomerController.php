@@ -11,21 +11,78 @@ class CustomerController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $customers = Customer::with(['creator', 'followUps'])
+        $validated = $request->validate([
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+            'region' => 'nullable|string|max:255',
+            'search' => 'nullable|string|max:255',
+        ]);
+
+        $dateFrom = $validated['date_from'] ?? null;
+        $dateTo = $validated['date_to'] ?? null;
+        $region = isset($validated['region']) ? trim($validated['region']) : null;
+        $search = isset($validated['search']) ? trim($validated['search']) : null;
+
+        $query = Customer::with(['creator', 'followUps']);
+
+        if ($dateFrom) {
+            $query->whereDate('created_at', '>=', $dateFrom);
+        }
+
+        if ($dateTo) {
+            $query->whereDate('created_at', '<=', $dateTo);
+        }
+
+        if ($region !== null && $region !== '') {
+            $query->where('location', $region);
+        }
+
+        if ($search !== null && $search !== '') {
+            $like = '%' . $search . '%';
+
+            $query->where(function ($q) use ($like, $search) {
+                $q->where('name', 'like', $like)
+                    ->orWhere('phone_number', 'like', $like)
+                    ->orWhere('location', 'like', $like)
+                    ->orWhere('visiting_purpose', 'like', $like)
+                    ->orWhereRaw("DATE_FORMAT(created_at, '%Y-%m-%d') like ?", [$like])
+                    ->orWhereRaw("DATE_FORMAT(created_at, '%b %d, %Y') like ?", [$like])
+                    ->orWhereRaw("DATE_FORMAT(created_at, '%M %d, %Y') like ?", [$like]);
+
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $search)) {
+                    $q->orWhereDate('created_at', $search);
+                }
+            });
+        }
+
+        $customers = $query
             ->orderByDesc('updated_at')
             ->orderByDesc('id')
-            ->paginate(20);
+            ->paginate(20)
+            ->appends($request->query());
 
         $stats = [
             'total' => Customer::count(),
             'today' => Customer::where('created_at', '>=', now()->startOfDay())->count(),
             'this_week' => Customer::where('created_at', '>=', now()->startOfWeek())->count(),
             'this_month' => Customer::where('created_at', '>=', now()->startOfMonth())->count(),
+            'filtered' => $customers->total(),
         ];
 
-        return view('customers.index', compact('customers', 'stats'));
+        $regions = Customer::query()
+            ->whereNotNull('location')
+            ->where('location', '!=', '')
+            ->distinct()
+            ->orderBy('location')
+            ->pluck('location');
+
+        if ($request->ajax()) {
+            return view('customers._results', compact('customers', 'dateFrom', 'dateTo', 'region', 'search'));
+        }
+
+        return view('customers.index', compact('customers', 'stats', 'regions', 'dateFrom', 'dateTo', 'region', 'search'));
     }
 
     /**
